@@ -679,6 +679,311 @@ ${why}
     finally { go.disabled = false; go.textContent = 'دخول'; }
   });
 
+  /* ---------- charts page: dashboard + custom chart, PDF/PNG download ---------- */
+  const CH = {
+    boys: '#2a78c2', girls: '#2f9e6e', single: '#173f67', other: '#9aa5b1', grid: '#edf0f2', ink: '#0a2744', muted: '#5b6e80',
+    stage: { 'المرحلة الابتدائية': '#6250d6', 'المرحلة المتوسطة': '#eb6834', 'المرحلة الثانوية': '#a8336f' },
+    cat: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6']
+  };
+  const DIMS = {
+    area: { label: 'القطاع والمحافظة', order: AREA_ROWS, key: s => areaRow(s) },
+    gov: { label: 'المحافظة', order: GOV_ORDER, key: s => s.gov },
+    stage: { label: 'المرحلة', order: STAGES, key: s => s.stage, ordinal: true, short: v => STAGE_SHORT[v] || v },
+    gender: { label: 'الجنس', order: GENDERS, key: s => s.gender },
+    type: { label: 'نوع التعليم', order: TYPE_ORDER, key: s => s.type },
+    office: { label: 'مكتب التعليم', order: null, key: s => s.office },
+    mgr: { label: 'المديرون حسب عدد المدارس', order: ['مدرسة واحدة', 'مدرستان', '3 مدارس', '4 مدارس فأكثر'], ordinal: true, managers: true }
+  };
+  const SHAPES = { bar: 'أعمدة', hbar: 'أعمدة أفقية', donut: 'دائرة', line: 'خطوط', pct: 'نسب مئوية' };
+  const chState = { view: 'dash', scope: 'all', dim: 'area', split: 'gender', shape: 'hbar' };
+  let charts = [];
+
+  const chRows = () => chState.scope === 'all' ? DATA : current;
+  function managerCounts(rows) {
+    const m = new Map();
+    for (const s of rows) { const k = s.group ? 'g' + s.group : 'i' + s.id; m.set(k, (m.get(k) || 0) + 1); }
+    const d = [0, 0, 0, 0]; for (const v of m.values()) d[Math.min(v, 4) - 1]++;
+    return d;
+  }
+  // builds {labels, series[], unit} for a dimension, optionally split by gender or stage
+  function dataset(rows, dim, split) {
+    const D = DIMS[dim];
+    if (D.managers) return { labels: D.order, series: [{ label: 'عدد المديرين والمديرات', color: CH.single, data: managerCounts(rows) }], unit: 'مدير' };
+    let cats = D.order ? D.order.filter(c => rows.some(s => D.key(s) === c)) : [...count(rows, D.key)].sort((a, b) => b[1] - a[1]).map(x => x[0]);
+    const lbl = c => D.short ? D.short(c) : c;
+    if (!split || split === dim) {
+      return { labels: cats.map(lbl), series: [{ label: 'عدد المدارس', color: CH.single, data: cats.map(c => rows.filter(s => D.key(s) === c).length) }], unit: 'مدرسة' };
+    }
+    const S = DIMS[split];
+    const groups = S.order.filter(g => rows.some(s => S.key(s) === g));
+    const color = g => split === 'gender' ? (g === 'بنين' ? CH.boys : CH.girls) : CH.stage[g];
+    return {
+      labels: cats.map(lbl),
+      series: groups.map(g => ({ label: S.short ? S.short(g) : g, color: color(g), data: cats.map(c => rows.filter(s => D.key(s) === c && S.key(s) === g).length) })),
+      unit: 'مدرسة'
+    };
+  }
+
+  const valueLabels = {
+    id: 'valueLabels',
+    afterDatasetsDraw(chart, args, opts) {
+      if (!opts || !opts.mode) return;
+      const { ctx } = chart, horiz = chart.options.indexAxis === 'y', metas = chart.getSortedVisibleDatasetMetas();
+      ctx.save(); ctx.font = '600 12px "Plex Arabic", Tahoma, sans-serif'; ctx.fillStyle = CH.ink;
+      const put = (el, text) => {
+        if (horiz) { ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(text, el.x - 6, el.y); }
+        else { ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText(text, el.x, el.y - 5); }
+      };
+      if (opts.mode === 'each') {
+        for (const m of metas) m.data.forEach((el, i) => { const v = chart.data.datasets[m.index].data[i]; if (v) put(el, fmt(v)); });
+      } else if (opts.mode === 'total') {
+        chart.data.labels.forEach((_, i) => {
+          let total = 0, el = null;
+          for (const m of metas) { const v = chart.data.datasets[m.index].data[i] || 0; total += v; if (v) el = m.data[i]; }
+          if (el && total) put(el, fmt(total));
+        });
+      }
+      ctx.restore();
+    }
+  };
+  const centerTotal = {
+    id: 'centerTotal',
+    afterDraw(chart, args, opts) {
+      if (!opts || !opts.text) return;
+      const m = chart.getDatasetMeta(0); if (!m.data.length) return;
+      const { x, y } = m.data[0], { ctx } = chart;
+      ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = CH.ink; ctx.font = '800 26px "Plex Arabic", Tahoma, sans-serif'; ctx.fillText(opts.text, x, y - 9);
+      ctx.fillStyle = CH.muted; ctx.font = '500 13px "Plex Arabic", Tahoma, sans-serif'; ctx.fillText(opts.sub || '', x, y + 16);
+      ctx.restore();
+    }
+  };
+
+  function buildChart(canvas, d, shape, opt = {}) {
+    const multi = d.series.length > 1;
+    const base = {
+      responsive: true, maintainAspectRatio: false, devicePixelRatio: 2, animation: { duration: 350 }, locale: 'en-US',
+      layout: { padding: { top: 8, left: 8, right: 8, bottom: 4 } },
+      plugins: {
+        legend: { display: multi, rtl: true, position: 'top', align: 'start', labels: { usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 12, boxHeight: 12, padding: 14, color: CH.ink, font: { size: 13, weight: '600' } } },
+        tooltip: { rtl: true, textDirection: 'rtl', titleAlign: 'right', bodyAlign: 'right', padding: 10, cornerRadius: 8, titleFont: { size: 13, weight: '700' }, bodyFont: { size: 13 } },
+        valueLabels: {}, centerTotal: {}
+      }
+    };
+    let type = 'bar', data, options = base;
+    const catAxis = { reverse: true, grid: { display: false }, ticks: { color: CH.ink, font: { size: 12.5 }, autoSkip: false, maxRotation: 50 } };
+    const valAxis = { beginAtZero: true, grid: { color: CH.grid }, border: { display: false }, ticks: { precision: 0, color: CH.muted } };
+    if (shape === 'donut') {
+      type = 'doughnut';
+      const totals = d.labels.map((_, i) => d.series.reduce((a, s) => a + (s.data[i] || 0), 0));
+      let items = d.labels.map((l, i) => ({ l, v: totals[i] })).filter(x => x.v);
+      if (d.series.length === 1 && d.series[0].label === 'عدد المدارس' && opt.genderColors) items = items.map(x => ({ ...x, c: x.l === 'بنين' ? CH.boys : CH.girls }));
+      if (items.length > 8) { const keep = items.slice().sort((a, b) => b.v - a.v).slice(0, 7); const restV = items.filter(x => !keep.includes(x)).reduce((a, x) => a + x.v, 0); items = items.filter(x => keep.includes(x)); items.push({ l: 'أخرى', v: restV, c: CH.other }); }
+      const total = items.reduce((a, x) => a + x.v, 0);
+      const stageCol = l => Object.entries(CH.stage).find(([k]) => (STAGE_SHORT[k] || k) === l)?.[1];
+      data = { labels: items.map(x => x.l), datasets: [{ data: items.map(x => x.v), backgroundColor: items.map((x, i) => x.c || stageCol(x.l) || CH.cat[i % CH.cat.length]), borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }] };
+      options = { ...base, cutout: '58%', plugins: { ...base.plugins,
+        legend: { ...base.plugins.legend, display: true, position: opt.compact ? 'bottom' : 'right', align: 'center',
+          labels: { ...base.plugins.legend.labels, generateLabels: ch => ch.data.labels.map((l, i) => ({ text: `${l}  ${fmt(ch.data.datasets[0].data[i])} (${Math.round(ch.data.datasets[0].data[i] / total * 1000) / 10}%)`, fillStyle: ch.data.datasets[0].backgroundColor[i], strokeStyle: '#fff', lineWidth: 0, pointStyle: 'rectRounded', hidden: !ch.getDataVisibility(i), index: i, fontColor: CH.ink })) } },
+        tooltip: { ...base.plugins.tooltip, callbacks: { label: c => ` ${c.label}: ${fmt(c.raw)} (${Math.round(c.raw / total * 1000) / 10}%)` } },
+        centerTotal: { text: fmt(total), sub: d.unit === 'مدير' ? 'مدير ومديرة' : 'مدرسة' } } };
+    } else if (shape === 'line') {
+      type = 'line';
+      data = { labels: d.labels, datasets: d.series.map(s => ({ label: s.label, data: s.data, borderColor: s.color, backgroundColor: s.color, borderWidth: 2, pointRadius: 5, pointHoverRadius: 7, pointBorderColor: '#fff', pointBorderWidth: 2, tension: 0 })) };
+      options = { ...base, layout: { padding: { top: 24, left: 12, right: 12, bottom: 4 } }, scales: { x: { ...catAxis, offset: true }, y: { ...valAxis, position: 'right' } },
+        interaction: { mode: 'index', intersect: false },
+        plugins: { ...base.plugins, valueLabels: { mode: multi ? '' : 'each' }, tooltip: { ...base.plugins.tooltip, callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.raw)}` } } } };
+    } else {
+      const horiz = shape === 'hbar' || shape === 'pct';
+      const pct = shape === 'pct', stacked = multi && (opt.stacked !== false || pct);
+      const totals = d.labels.map((_, i) => d.series.reduce((a, s) => a + (s.data[i] || 0), 0));
+      data = { labels: d.labels, datasets: d.series.map((s, si) => ({
+        label: s.label, raw: s.data, data: pct ? s.data.map((v, i) => totals[i] ? Math.round(v / totals[i] * 1000) / 10 : 0) : s.data,
+        backgroundColor: s.color, borderColor: '#fff', borderWidth: stacked ? 1.5 : 0, borderSkipped: false,
+        borderRadius: stacked ? (si === d.series.length - 1 ? 4 : 0) : 4,
+        maxBarThickness: horiz ? 26 : 46, categoryPercentage: 0.72, barPercentage: multi && !stacked ? 0.92 : 0.86 })) };
+      const vAxis = { ...valAxis, stacked, ...(pct ? { max: 100, ticks: { ...valAxis.ticks, callback: v => v + '%' } } : {}) };
+      const cAxis = { ...catAxis, stacked };
+      options = { ...base, indexAxis: horiz ? 'y' : 'x',
+        layout: { padding: horiz ? { top: 4, left: pct ? 8 : 46, right: 8, bottom: 4 } : { top: 24, left: 8, right: 8, bottom: 4 } },
+        scales: horiz ? { x: { ...vAxis, reverse: true }, y: { ...cAxis, reverse: false, position: 'right', ticks: { ...cAxis.ticks, maxRotation: 0 } } } : { x: cAxis, y: { ...vAxis, position: 'right' } },
+        plugins: { ...base.plugins,
+          valueLabels: { mode: pct ? '' : (stacked || !multi ? 'total' : 'each') },
+          tooltip: { ...base.plugins.tooltip, callbacks: {
+            label: c => pct ? ` ${c.dataset.label}: ${c.raw}% (${fmt(c.dataset.raw[c.dataIndex])})` : ` ${c.dataset.label}: ${fmt(c.raw)}`,
+            footer: items => (stacked && !pct && items.length) ? `الإجمالي: ${fmt(totals[items[0].dataIndex])}` : ''
+          } } } };
+      if (stacked || pct) options.interaction = { mode: 'index', intersect: false };
+    }
+    const chart = new Chart(canvas, { type, data, options, plugins: [valueLabels, centerTotal] });
+    charts.push(chart);
+    return chart;
+  }
+
+  const chCard = (id, title, sub, h, wide) => `<section class="ch-card${wide ? ' wide' : ''}" data-chart="${id}"><h4>${esc(title)}${sub ? `<small>${esc(sub)}</small>` : ''}</h4><div class="ch-canvas" style="height:${h}px"><canvas id="cv-${id}" role="img" aria-label="${esc(title)}"></canvas></div></section>`;
+  function destroyCharts() { charts.forEach(c => c.destroy()); charts = []; }
+
+  const DASH = [
+    { id: 'd1', title: 'المدارس حسب القطاع والمحافظة', sub: 'بنين وبنات', dim: 'area', split: 'gender', shape: 'hbar', h: 470, wide: true },
+    { id: 'd2', title: 'المدارس حسب المرحلة', dim: 'stage', split: '', shape: 'donut', h: 300 },
+    { id: 'd3', title: 'المرحلة والجنس', dim: 'stage', split: 'gender', shape: 'bar', h: 300, opt: { stacked: false } },
+    { id: 'd4', title: 'المحافظة والمرحلة', sub: 'مكة المكرمة بجميع قطاعاتها', dim: 'gov', split: 'stage', shape: 'hbar', h: 360, wide: true },
+    { id: 'd5', title: 'نوع التعليم والجنس', dim: 'type', split: 'gender', shape: 'hbar', h: 300 },
+    { id: 'd6', title: 'مكتب التعليم', dim: 'office', split: '', shape: 'hbar', h: 300 },
+    { id: 'd7', title: 'المديرون والمديرات حسب عدد المدارس', sub: 'كم مدرسة يدير كل مدير أو مديرة', dim: 'mgr', split: '', shape: 'bar', h: 300 },
+    { id: 'd8', title: 'نسبة البنين والبنات في كل مرحلة', dim: 'stage', split: 'gender', shape: 'pct', h: 300 }
+  ];
+  function scopeText() {
+    if (chState.scope === 'all') return 'جميع المدارس';
+    const p = ['النتائج الحالية'];
+    if (state.q.trim()) p.push(`البحث: «${state.q.trim()}»`);
+    if (hasFilters()) p.push(filterText());
+    return p.join(' · ');
+  }
+  function renderDash() {
+    const rows = chRows();
+    const boys = rows.filter(s => s.gender === 'بنين').length, girls = rows.length - boys;
+    const mgrs = managerCounts(rows).reduce((a, b) => a + b, 0);
+    const kpi = (n, l, c) => `<div class="kpi"${c ? ` style="--k:${c}"` : ''}><b>${fmt(n)}</b><span>${l}</span></div>`;
+    $('ch-dash').innerHTML = `<div class="kpis ch-kpis" data-block>${kpi(rows.length, 'إجمالي المدارس')}${kpi(boys, '<i class="sw b"></i>مدارس البنين')}${kpi(girls, '<i class="sw g"></i>مدارس البنات')}${kpi(mgrs, 'مديرون ومديرات')}</div>`
+      + DASH.map(c => chCard(c.id, c.title, c.sub, c.h, c.wide)).join('');
+    for (const c of DASH) buildChart($('cv-' + c.id), dataset(rows, c.dim, c.split), c.shape, { ...(c.opt || {}), compact: true });
+  }
+  function customNote() {
+    const notes = [];
+    if (chState.shape === 'line' && !DIMS[chState.dim].ordinal) notes.push('الخطوط تناسب البيانات المرتبة مثل المراحل؛ هنا تُقرأ كل نقطة وحدها.');
+    if (chState.shape === 'donut' && chState.split) notes.push('الدائرة تعرض الإجمالي لكل فئة دون تقسيم.');
+    if (chState.shape === 'donut' && chState.dim === 'area') notes.push('جُمعت قطاعات مكة المكرمة في الدائرة لتبقى واضحة، واختر «أعمدة» لعرض كل قطاع.');
+    if (chState.shape === 'pct' && (!chState.split || chState.split === chState.dim)) notes.push('النسب المئوية تحتاج تقسيمًا، فقُسّمت حسب الجنس.');
+    if (DIMS[chState.dim].managers && chState.split) notes.push('لا يُقسَّم المديرون حسب الجنس أو المرحلة.');
+    if (chState.split === chState.dim) notes.push('اختر تقسيمًا مختلفًا عن البيان نفسه.');
+    return notes.join(' ');
+  }
+  function renderCustom() {
+    const rows = chRows(), D = DIMS[chState.dim];
+    let split = D.managers ? '' : chState.split;
+    if (split === chState.dim) split = '';
+    if (chState.shape === 'pct' && !split) split = chState.dim === 'gender' ? 'stage' : 'gender';
+    if (chState.shape === 'donut') split = '';
+    // a donut stays readable with few slices: Makkah's sectors are merged into the governorate
+    const dimUsed = chState.shape === 'donut' && chState.dim === 'area' ? 'gov' : chState.dim;
+    const d = dataset(rows, dimUsed, split);
+    const title = `${D.managers ? D.label : 'المدارس حسب ' + D.label}${split ? ' و' + DIMS[split].label : ''}`;
+    const h = chState.shape === 'donut' ? 420 : Math.max(380, (chState.shape === 'hbar' || chState.shape === 'pct') ? d.labels.length * 38 + 90 : 420);
+    const totals = d.labels.map((_, i) => d.series.reduce((a, s) => a + (s.data[i] || 0), 0));
+    const grand = totals.reduce((a, b) => a + b, 0);
+    const table = `<table class="ch-table"><thead><tr><th>${esc(D.label)}</th>${d.series.length > 1 ? d.series.map(s => `<th class="n"><i class="sw" style="background:${s.color}"></i>${esc(s.label)}</th>`).join('') : ''}<th class="n">${d.unit === 'مدير' ? 'العدد' : 'عدد المدارس'}</th><th class="n">النسبة</th></tr></thead><tbody>`
+      + d.labels.map((l, i) => `<tr><td>${esc(l)}</td>${d.series.length > 1 ? d.series.map(s => `<td class="n">${fmt(s.data[i])}</td>`).join('') : ''}<td class="n">${fmt(totals[i])}</td><td class="n">${grand ? Math.round(totals[i] / grand * 1000) / 10 : 0}%</td></tr>`).join('')
+      + `<tr class="total"><td>الإجمالي</td>${d.series.length > 1 ? d.series.map(s => `<td class="n">${fmt(s.data.reduce((a, b) => a + b, 0))}</td>`).join('') : ''}<td class="n">${fmt(grand)}</td><td class="n">100%</td></tr></tbody></table>`;
+    $('ch-custom').innerHTML = chCard('c1', title, SHAPES[chState.shape], h, true).replace('</section>', `<div class="ch-table-wrap">${table}</div></section>`);
+    buildChart($('cv-c1'), d, chState.shape, { stacked: chState.shape === 'bar' ? false : true, genderColors: chState.dim === 'gender' });
+    $('ch-note').textContent = customNote();
+  }
+  function renderCharts() {
+    destroyCharts();
+    $('ch-dash').hidden = chState.view !== 'dash'; $('ch-custom').hidden = chState.view !== 'custom'; $('ch-controls').hidden = chState.view !== 'custom';
+    $('ch-note').textContent = '';
+    $('ch-scope-text').textContent = scopeText();
+    document.querySelectorAll('#charts-dialog [data-view]').forEach(b => b.setAttribute('aria-selected', b.dataset.view === chState.view));
+    document.querySelectorAll('#charts-dialog input[name="ch-shape"]').forEach(r => { r.checked = r.value === chState.shape; });
+    if (chState.view === 'dash') renderDash(); else renderCustom();
+  }
+  async function openCharts() {
+    const btn = $('open-charts'); btn.disabled = true;
+    try {
+      await loadScript('vendor/chart.umd.min.js');
+      Chart.defaults.font.family = '"Plex Arabic","Segoe UI",Tahoma,Arial,sans-serif';
+      Chart.defaults.font.size = 13; Chart.defaults.color = CH.muted;
+      chState.scope = (state.q.trim() || hasFilters() || state.group) ? 'results' : 'all';
+      $('ch-scope').value = chState.scope;
+      $('charts-dialog').showModal();
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      renderCharts();
+    } catch (e) { toast(e.message || 'تعذّر فتح الرسوم البيانية'); }
+    finally { btn.disabled = false; }
+  }
+  $('open-charts').addEventListener('click', openCharts);
+  $('charts-dialog').addEventListener('close', destroyCharts);
+  document.querySelectorAll('#charts-dialog [data-view]').forEach(b => b.addEventListener('click', () => { chState.view = b.dataset.view; renderCharts(); }));
+  $('ch-scope').addEventListener('change', () => { chState.scope = $('ch-scope').value; renderCharts(); });
+  $('ch-dim').addEventListener('change', () => { chState.dim = $('ch-dim').value; renderCharts(); });
+  $('ch-split').addEventListener('change', () => { chState.split = $('ch-split').value; renderCharts(); });
+  document.querySelectorAll('#charts-dialog input[name="ch-shape"]').forEach(r => r.addEventListener('change', () => { chState.shape = r.value; renderCharts(); }));
+
+  // export: page images built from the charts (canvas -> image), header on every page
+  function exportBlocks() {
+    const root = chState.view === 'dash' ? $('ch-dash') : $('ch-custom');
+    return [...root.children].map(el => {
+      const c = el.cloneNode(true);
+      c.querySelectorAll('canvas').forEach(cv => {
+        const ch = charts.find(x => x.canvas.id === cv.id);
+        const box = cv.parentElement, wide = el.classList.contains('wide');
+        // redraw at the size it will have on the A4 page so text keeps its real size
+        const w = wide ? 698 : 333, h = Math.round(parseInt(box.style.height, 10) * (wide ? 0.82 : 0.9));
+        const img = document.createElement('img');
+        if (ch) { ch.resize(w, h); img.src = ch.toBase64Image('image/png', 1); ch.resize(); }
+        img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'contain'; img.style.display = 'block';
+        box.style.height = h + 'px';
+        cv.replaceWith(img);
+      });
+      return c;
+    });
+  }
+  function exportTitle() {
+    if (chState.view === 'dash') return 'لوحة الرسوم البيانية لمدارس منطقة مكة المكرمة';
+    const h = $('ch-custom').querySelector('h4'); return h ? h.firstChild.textContent : 'رسم بياني';
+  }
+  function pageShell(first, pageNo) {
+    const p = document.createElement('div'); p.className = 'ch-page';
+    p.innerHTML = (first
+      ? `<div class="sp-banner"><img src="${bannerSrc()}" alt=""></div><div class="ch-page-head"><h1>${esc(exportTitle())}</h1><p>مدير إدارة الإدارة المدرسية: د. سعيد الحربي · النطاق: ${esc(scopeText())}<br>تاريخ البيانات: ${esc(hijriSpace(META.date || '—'))} · تاريخ الإعداد: ${esc(nowDates())}</p></div>`
+      : `<div class="ch-page-head small"><b>${esc(exportTitle())}</b><span>صفحة ${pageNo}</span></div>`)
+      + '<div class="ch-page-grid"></div>';
+    return p;
+  }
+  async function renderPages(paginate) {
+    await Promise.all([loadScript('vendor/html2canvas.min.js'), loadScript('vendor/jspdf.umd.min.js')]);
+    const stage = document.createElement('div'); stage.id = 'pdf-stage'; stage.className = 'ch-export'; document.body.appendChild(stage);
+    const blocks = exportBlocks(), pages = [];
+    let page = pageShell(true, 1); stage.appendChild(page); pages.push(page);
+    const PAGE_H = 1123;
+    for (const b of blocks) {
+      const grid = page.querySelector('.ch-page-grid'); grid.appendChild(b);
+      await new Promise(r => requestAnimationFrame(r));
+      if (paginate && page.scrollHeight > PAGE_H && grid.children.length > 1) {
+        b.remove(); page = pageShell(false, pages.length + 1); stage.appendChild(page); pages.push(page);
+        page.querySelector('.ch-page-grid').appendChild(b);
+      }
+    }
+    await Promise.all([...stage.querySelectorAll('img')].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const canvases = [];
+    for (const p of pages) canvases.push(await html2canvas(p, { scale: 2, backgroundColor: '#ffffff', logging: false }));
+    stage.remove();
+    return canvases;
+  }
+  async function busy(btn, fn) {
+    const label = btn.innerHTML; btn.disabled = true; btn.textContent = 'جارٍ التجهيز…';
+    try { await fn(); } catch (e) { toast(e.message || 'تعذّر إنشاء الملف'); }
+    finally { btn.disabled = false; btn.innerHTML = label; }
+  }
+  const fileBase = () => chState.view === 'dash' ? 'رسوم-بيانية-مدارس-مكة' : 'رسم-بياني-' + DIMS[chState.dim].label.replace(/\s+/g, '-');
+  $('ch-pdf').addEventListener('click', () => busy($('ch-pdf'), async () => {
+    const pages = await renderPages(true);
+    const pdf = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    pages.forEach((cv, i) => {
+      if (i) pdf.addPage();
+      let w = 210, h = cv.height * w / cv.width; if (h > 297) { h = 297; w = cv.width * h / cv.height; }
+      pdf.addImage(cv.toDataURL('image/jpeg', 0.93), 'JPEG', (210 - w) / 2, 0, w, h);
+    });
+    pdf.save(fileBase() + '.pdf'); toast('حُفظ ملف PDF');
+  }));
+  $('ch-png').addEventListener('click', () => busy($('ch-png'), async () => {
+    const [cv] = await renderPages(false);
+    const a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = fileBase() + '.png'; document.body.appendChild(a); a.click(); a.remove();
+    toast('حُفظت الصورة');
+  }));
+
   /* ---------- dialogs ---------- */
   document.querySelectorAll('dialog').forEach(d => {
     d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) d.close(); });
