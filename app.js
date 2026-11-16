@@ -673,6 +673,21 @@ ${why}
     d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) d.close(); });
   });
 
+  /* ---------- today's date (Hijri + Gregorian) and time, Riyadh time ---------- */
+  function tickToday() {
+    const now = new Date(), tz = { timeZone: 'Asia/Riyadh' };
+    const fmt2 = (loc, o) => { try { return new Intl.DateTimeFormat(loc, { ...tz, ...o }).format(now); } catch (e) { return ''; } };
+    const day = fmt2('ar-SA-u-ca-gregory-nu-latn', { weekday: 'long' });
+    const hij = fmt2('ar-SA-u-ca-islamic-umalqura-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' }).replace(/\s*هـ$/, '');
+    const greg = fmt2('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' });
+    const time = fmt2('ar-SA-u-nu-latn', { hour: 'numeric', minute: '2-digit', hour12: true });
+    $('today-hijri').textContent = `${day} ${hij} هـ`;
+    $('today-greg').textContent = `${greg} م`;
+    $('today-time').textContent = time;
+    setTimeout(tickToday, 60000 - (now.getSeconds() * 1000 + now.getMilliseconds()) + 50);
+  }
+  tickToday();
+
   /* ---------- start ---------- */
   $('data-date').textContent = META.date || '—';
   buildFilters();
