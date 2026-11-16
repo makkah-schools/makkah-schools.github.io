@@ -184,8 +184,37 @@ dialog::backdrop{background:rgba(4,15,28,.62)}
 .all-data tr.locked td{color:#8a97a3;font-weight:400}
 .all-data tr.extra th{background:var(--gold-soft);color:#7a5a1a}
 .all-data tr.group td{padding:8px 14px;background:var(--steel-soft);color:var(--navy);font-weight:700;font-size:13.5px}
-.details-tools{margin:16px 0 0}
+.details-tools{position:sticky;bottom:-22px;margin:16px -22px -22px;padding:12px 22px 16px;background:linear-gradient(180deg,rgba(251,250,246,.92),var(--paper) 30%);border-top:1px solid var(--line)}
 @media (max-width:620px){.all-data{font-size:14px}.all-data th,.all-data td{padding:9px 10px}.all-data th{width:42%}}
+
+/* printable school card (used for printing and for the PDF) */
+.sp{width:100%;background:#fff;color:#0a2744;font-family:"Plex Arabic","Segoe UI",Tahoma,Arial,sans-serif;direction:rtl}
+.sp-banner{background:#0b3946;border-radius:14px;text-align:center;padding:8px 10px;border-bottom:4px solid #1f9a8a;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.sp-banner img{height:104px;width:auto;display:inline-block}
+.sp-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin:14px 2px 12px;padding-bottom:10px;border-bottom:2px solid #e3e8ec}
+.sp-head h1{margin:0;font-size:24px;color:#071d35;font-weight:800}
+.sp-head p{margin:4px 0 0;color:#5b6e80;font-size:13.5px}
+.sp-dates{text-align:left;font-size:12.5px;color:#5b6e80;line-height:1.8}
+.sp-dates b{color:#173f67}
+.sp-school{border:1.5px solid #cfdbe6;border-radius:16px;padding:16px 18px;background:#f6f9fb;-webkit-print-color-adjust:exact;print-color-adjust:exact;border-right:6px solid #173f67}
+.sp-school.f{border-right-color:#a24763}
+.sp-name{font-size:22px;font-weight:800;color:#071d35;line-height:1.6}
+.sp-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.sp-tags>span{background:#fff;border:1px solid #d6e0e8;border-radius:999px;padding:4px 12px;font-size:13.5px;font-weight:700;color:#173f67}
+.sp-tags .ltr{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
+.sp-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px;table-layout:fixed}
+.sp-table th,.sp-table td{border:1px solid #d9e2e9;padding:8px 10px;text-align:right;vertical-align:middle;overflow-wrap:anywhere}
+.sp-table th{width:19%;background:#f1f5f8;color:#3c5568;font-weight:600;font-size:13px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.sp-table td{width:31%;font-weight:700;color:#0a2744}
+.sp-table tr.sec-title td{background:#173f67;color:#fff;font-size:14px;font-weight:700;padding:7px 12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.sp-table td .ltr{direction:ltr;unicode-bidi:isolate}
+.sp-table td .none{color:#9aa7b3;font-weight:400}
+.sp-sign{display:flex;justify-content:flex-end;margin-top:30px;break-inside:avoid}
+.sp-sign-box{width:300px;text-align:center;line-height:2}
+.sp-sign-box span{display:block;font-size:14px;color:#5b6e80}
+.sp-sign-box b{display:block;font-size:18px;color:#071d35}
+.sp-line{margin-top:16px;font-size:14px;color:#5b6e80;white-space:nowrap}
+#pdf-stage{position:fixed;top:0;left:-12000px;width:794px;padding:34px 38px;background:#fff;z-index:-1}
 
 /* report */
 .report h2{margin:0 0 4px;font-size:22px;color:var(--navy-deep)}
@@ -254,6 +283,7 @@ dialog::backdrop{background:rgba(4,15,28,.62)}
   body::before{display:none}
   .page,dialog,.toast{display:none!important}
   #print-area{display:block;font-size:12px}
+  #print-area .sp-banner img{height:96px}
   .print-banner{display:block;background:#0b3946;text-align:center;border-radius:10px;padding:6px;margin-bottom:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .print-banner img{height:90px;width:auto}
   .report h2{font-size:18px}

@@ -495,7 +495,6 @@ ${why}
     const s = byId.get(id); if (!s) return;
     detailsId = id;
     $('details-title').textContent = s.name;
-    $('details-sub').textContent = `جميع أعمدة ملف Excel كما وردت فيه · ${META.title || ''}`;
     const rows = detailRows(s);
     const locked = rows.some(r => r.locked);
     let html = rows.map(r => r.locked
@@ -508,6 +507,90 @@ ${why}
     $('details-login').hidden = !locked || !canCrypto();
     if (!$('details-dialog').open) $('details-dialog').showModal();
   }
+  /* printable card: header, all data, director and signature */
+  const bannerSrc = () => (document.querySelector('.ministry img') || {}).getAttribute?.('src') || 'ministry-header.png';
+  function nowDates() {
+    const now = new Date();
+    const g = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { timeZone: 'Asia/Riyadh', dateStyle: 'long' }).format(now);
+    let h = ''; try { h = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', { timeZone: 'Asia/Riyadh', dateStyle: 'long' }).format(now); } catch (e) { /* ignore */ }
+    return h ? `${h} الموافق ${g}` : g;
+  }
+  const hijriSpace = t => String(t).replace(/(\d)\s*هـ/g, '$1 هـ');
+  function printValue(h, v) {
+    if (!v) return '<span class="none">—</span>';
+    if (/جوال|الهاتف/.test(h)) return `<span class="ltr">${esc(localPhone(v))}</span>`;
+    if (/هوية|البريد|الرقم الوزاري/.test(h)) return `<span class="ltr">${esc(v)}</span>`;
+    return esc(v);
+  }
+  function schoolCardHtml(s) {
+    const rows = detailRows(s).filter(r => !r.locked && r.h !== 'اسم المدرسة' && r.h !== 'الرقم الوزاري');
+    const isMgr = r => r.sec || /مدير/.test(r.h);
+    const school = rows.filter(r => !isMgr(r)).concat([{ h: 'القطاع / المحافظة', v: areaLabel(s) }]);
+    const mgr = rows.filter(isMgr);
+    const cell = r => `<th>${esc(r.h)}</th><td>${printValue(r.h, r.v)}</td>`;
+    const pairs = list => { let out = ''; for (let i = 0; i < list.length; i += 2) out += `<tr>${cell(list[i])}${list[i + 1] ? cell(list[i + 1]) : '<th></th><td></td>'}</tr>`; return out; };
+    const wideRow = r => `<tr><th>${esc(r.h)}</th><td colspan="3">${printValue(r.h, r.v)}</td></tr>`;
+    const by = h => mgr.find(r => r.h === h);
+    let mgrRows = '';
+    const name = mgr.find(r => /اسم مدير/.test(r.h)); if (name) mgrRows += wideRow(name);
+    mgrRows += pairs(['هوية مدير المدرسة', 'جوال مدير المدرسة'].map(by).filter(Boolean));
+    const mail = mgr.find(r => /البريد/.test(r.h)); if (mail) mgrRows += wideRow(mail);
+    const extra = ['المكلفة', 'الهاتف'].map(by).filter(r => r && r.v);
+    mgrRows += pairs(extra);
+    const rest = mgr.filter(r => r !== name && r !== mail && !['هوية مدير المدرسة', 'جوال مدير المدرسة', 'المكلفة', 'الهاتف'].includes(r.h));
+    mgrRows += pairs(rest);
+    const f = s.gender === 'بنات';
+    return `<div class="sp">
+<div class="sp-banner"><img src="${bannerSrc()}" alt="وزارة التعليم - الإدارة العامة للتعليم بمنطقة مكة المكرمة - إدارة الإدارة المدرسية"></div>
+<div class="sp-head"><div><h1>بطاقة بيانات مدرسة</h1><p>الإدارة العامة للتعليم بمنطقة مكة المكرمة · إدارة الإدارة المدرسية</p></div>
+<div class="sp-dates">تاريخ البيانات: <b>${esc(hijriSpace(META.date || '—'))}</b><br>تاريخ الطباعة: <b>${esc(nowDates())}</b></div></div>
+<div class="sp-school${f ? ' f' : ''}"><div class="sp-name">${esc(s.name)}</div>
+<div class="sp-tags"><span>الرقم الوزاري: <b class="ltr">${esc(s.code)}</b></span><span>${esc(s.gender)}</span><span>${esc(s.stage)}</span><span>${esc(s.type)}</span></div></div>
+<table class="sp-table"><tbody>
+<tr class="sec-title"><td colspan="4">بيانات المدرسة</td></tr>${pairs(school)}
+<tr class="sec-title"><td colspan="4">بيانات ${f ? 'مديرة' : 'مدير'} المدرسة</td></tr>${mgrRows}
+</tbody></table>
+<div class="sp-sign"><div class="sp-sign-box"><span>مدير إدارة الإدارة المدرسية</span><b>د. سعيد الحربي</b><div class="sp-line">التوقيع: ..................................................</div></div></div>
+</div>`;
+  }
+  $('details-print').addEventListener('click', () => {
+    const s = byId.get(detailsId); if (!s) return;
+    $('print-area').innerHTML = schoolCardHtml(s);
+    const img = $('print-area').querySelector('img');
+    const go = () => window.print();
+    if (img && !img.complete) { img.onload = go; img.onerror = go; } else go();
+  });
+  function loadScript(src) {
+    return new Promise((res, rej) => {
+      if (document.querySelector(`script[data-src="${src}"]`)) return res();
+      const el = document.createElement('script'); el.src = src; el.dataset.src = src;
+      el.onload = () => res(); el.onerror = () => rej(new Error('تعذّر تحميل أداة PDF. تحقق من الاتصال ثم أعد المحاولة.'));
+      document.head.appendChild(el);
+    });
+  }
+  $('details-pdf').addEventListener('click', async () => {
+    const s = byId.get(detailsId); if (!s) return;
+    const btn = $('details-pdf'), label = btn.innerHTML; btn.disabled = true; btn.textContent = 'جارٍ تجهيز الملف…';
+    let stage = null;
+    try {
+      await Promise.all([loadScript('vendor/html2canvas.min.js'), loadScript('vendor/jspdf.umd.min.js')]);
+      stage = document.createElement('div'); stage.id = 'pdf-stage'; stage.innerHTML = schoolCardHtml(s); document.body.appendChild(stage);
+      await Promise.all([...stage.querySelectorAll('img')].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      const canvas = await html2canvas(stage, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pw = 210, ph = 297, margin = 0;
+      let w = pw - margin * 2, h = canvas.height * w / canvas.width;
+      if (h > ph) { h = ph; w = canvas.width * h / canvas.height; }
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', (pw - w) / 2, margin, w, h);
+      pdf.setProperties({ title: s.name });
+      pdf.save(`بطاقة-مدرسة-${s.code}.pdf`);
+      toast('حُفظ ملف PDF');
+    } catch (e) { toast(e.message || 'تعذّر إنشاء ملف PDF'); }
+    finally { if (stage) stage.remove(); btn.disabled = false; btn.innerHTML = label; }
+  });
+
   $('details-copy').addEventListener('click', () => {
     const s = byId.get(detailsId); if (!s) return;
     const text = [s.name, ...detailRows(s).filter(r => !r.locked).map(r => `${r.h}: ${/جوال|الهاتف/.test(r.h) ? localPhone(r.v) : (r.v || '—')}`), `القطاع / المحافظة: ${areaLabel(s)}`].join('\n');

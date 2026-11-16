@@ -10,7 +10,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23071d35'/%3E%3Cpath d='M20 9l11 6v2H9v-2zM11 19h3v9h-3zm7.5 0h3v9h-3zm7.5 0h3v9h-3zM9 30h22v2H9z' fill='%23d6b878'/%3E%3C/svg%3E">
 <link rel="preload" href="fonts/plex-arabic-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/plex-arabic-700.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=49dc299f">
+<link rel="stylesheet" href="style.css?v=e866d369">
 </head>
 <body>
 <div class="page">
@@ -103,10 +103,11 @@
 <dialog id="details-dialog" aria-labelledby="details-title">
   <div class="dlg-head"><h3 id="details-title">بيانات المدرسة</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
   <div class="dlg-body">
-    <p class="note" id="details-sub"></p>
     <table class="all-data" id="details-table"></table>
     <div class="dlg-tools details-tools">
-      <button class="btn primary" type="button" id="details-copy">نسخ البيانات</button>
+      <button class="btn primary" type="button" id="details-print"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="7"/></svg>طباعة</button>
+      <button class="btn primary" type="button" id="details-pdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M12 12v6m0 0l-2.5-2.5M12 18l2.5-2.5"/></svg>حفظ PDF</button>
+      <button class="btn" type="button" id="details-copy">نسخ البيانات</button>
       <button class="btn" type="button" id="details-login" hidden>دخول الإدارة لعرض البيانات المقفلة</button>
       <button class="btn" type="button" data-close>إغلاق</button>
     </div>
@@ -131,6 +132,6 @@
 <script src="data.js?v=78aed8b5"></script>
 <script src="secure.js?v=9aa04cf8"></script>
 <script src="search.js?v=a7528e3c"></script>
-<script src="app.js?v=b05b6b9d"></script>
+<script src="app.js?v=6501ce76"></script>
 </body>
 </html>
