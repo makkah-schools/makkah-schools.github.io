@@ -364,9 +364,20 @@ ${why}
     const { T, managers } = tables(rows);
     const kpi = (n, l) => `<div class="kpi"><b>${fmt(n)}</b><span>${l}</span></div>`;
     const tbl = t => {
-      const max = t.bars ? Math.max(...t.rows.map(r => r[r.length - 1]), 1) : 0;
-      return `<section class="rsec ${t.wide ? 'wide' : ''}"><h4>${esc(t.title)}</h4><table><thead><tr>${t.head.map((h, i) => `<th class="${i ? 'n' : ''}">${esc(h)}</th>`).join('')}</tr></thead><tbody>${
-        t.rows.map(r => `<tr>${r.map((c, i) => i ? `<td class="n">${fmt(c)}</td>` : `<td>${esc(c)}${t.bars ? `<span class="bar" style="width:${Math.round(r[r.length - 1] / max * 100)}%"></span>` : ''}</td>`).join('')}</tr>`).join('')
+      const last = r => r[r.length - 1];
+      const gi = t.head.indexOf('بنين'), gj = t.head.indexOf('بنات'), split = gi > 0 && gj > 0;
+      const max = Math.max(...t.rows.map(last), 1);
+      const sw = h => h === 'بنين' ? '<i class="sw b"></i>' : h === 'بنات' ? '<i class="sw g"></i>' : '';
+      const bar = r => {
+        if (split) {
+          const b = r[gi], g = r[gj];
+          return `<span class="gbar" style="width:${Math.max(Math.round(last(r) / max * 100), 2)}%">${b ? `<i class="b" style="flex:${b}" title="بنين: ${fmt(b)}"></i>` : ''}${g ? `<i class="g" style="flex:${g}" title="بنات: ${fmt(g)}"></i>` : ''}</span>`;
+        }
+        return t.bars ? `<span class="bar" style="width:${Math.round(last(r) / max * 100)}%"></span>` : '';
+      };
+      const legend = split ? '<span class="legend"><span><i class="sw b"></i>بنين</span><span><i class="sw g"></i>بنات</span></span>' : '';
+      return `<section class="rsec ${t.wide ? 'wide' : ''}"><h4>${esc(t.title)}${legend}</h4><table><thead><tr>${t.head.map((h, i) => `<th class="${i ? 'n' : ''}">${sw(h)}${esc(h)}</th>`).join('')}</tr></thead><tbody>${
+        t.rows.map(r => `<tr>${r.map((c, i) => i ? `<td class="n">${fmt(c)}</td>` : `<td>${esc(c)}${bar(r)}</td>`).join('')}</tr>`).join('')
       }<tr class="total">${t.total.map((c, i) => i ? `<td class="n">${fmt(c)}</td>` : `<td>${esc(c)}</td>`).join('')}</tr></tbody></table></section>`;
     };
     return `<div class="report"><h2>تقرير أعداد مدارس منطقة مكة المكرمة</h2><div class="meta">${reportMeta(scope).map(esc).join('<br>')}</div>
