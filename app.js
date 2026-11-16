@@ -348,7 +348,7 @@ ${why}
     const g = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { timeZone: 'Asia/Riyadh', dateStyle: 'long', timeStyle: 'short' }).format(now);
     let h = '';
     try { h = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', { timeZone: 'Asia/Riyadh', dateStyle: 'long' }).format(now); } catch (e) { /* ignore */ }
-    const lines = [`النطاق: ${scope === 'all' ? 'جميع المدارس' : 'النتائج الحالية'}`];
+    const lines = ['مدير إدارة الإدارة المدرسية: د. سعيد الحربي', `النطاق: ${scope === 'all' ? 'جميع المدارس' : 'النتائج الحالية'}`];
     if (scope !== 'all') {
       if (state.group) lines.push('مدارس مدير واحد');
       if (state.q.trim()) lines.push(`نص البحث: «${state.q.trim()}»`);
@@ -592,7 +592,6 @@ ${why}
 
   /* ---------- start ---------- */
   $('data-date').textContent = META.date || '—';
-  if (META.title) $('source-title').textContent = META.title;
   buildFilters();
   loadUrl();
   adminUI();

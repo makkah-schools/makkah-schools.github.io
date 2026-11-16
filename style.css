@@ -29,8 +29,8 @@ button{cursor:pointer}
 .ministry img{display:block;height:128px;width:auto;max-width:100%}
 .brand{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 26px;border-bottom:1px solid #e8e5dc;background:linear-gradient(180deg,#fffefb,#f7f5ef)}
 .brand-id{display:flex;align-items:center;gap:12px}
-.brand-text b{display:block;font-size:17px;color:var(--navy-deep)}
-.brand-text span{font-size:13px;color:var(--muted)}
+.brand-text span{display:block;font-size:13.5px;color:var(--muted)}
+.brand-text b{display:block;font-size:19px;color:var(--navy-deep)}
 .brand-side{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
 .admin-btn{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--navy);background:var(--navy);color:#fff;font-weight:700;font-size:13.5px;white-space:nowrap}
 .admin-btn svg{width:16px;height:16px}
