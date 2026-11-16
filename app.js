@@ -3,7 +3,8 @@
   const $ = id => document.getElementById(id);
   const DATA = window.SCHOOLS || [];
   let SECURE = window.SCHOOL_SECURE && window.SCHOOL_SECURE.build === (window.SCHOOL_META || {}).build ? window.SCHOOL_SECURE : null;
-  let admin = false, adminKey = null;
+  let admin = false, adminKey = null, editor = false;  // admin: personal data unlocked; editor: database owner (Firebase)
+  let editorData = { deputies: {} };
   const META = window.SCHOOL_META || {};
   const byId = new Map(DATA.map(s => [s.id, s]));
   const PAGE = 24;
@@ -43,7 +44,8 @@
     if (!index) index = SchoolSearch.index(DATA.map(s => ({
       id: s.id, name: s.name, code: s.code, manager: s.manager, stage: s.stage, gender: s.gender,
       sector: s.sector, region: s.gov, town: s.town, type: s.type, office: s.office,
-      ...(admin ? { identity: s.identity, phone: s.phone, email: s.email } : {})
+      ...(admin ? { identity: s.identity, phone: s.phone, email: s.email } : {}),
+      ...(editor && deputyOf(s).name ? { manager: s.manager + ' ' + deputyOf(s).name } : {})
     })));
     return index;
   }
@@ -144,8 +146,13 @@
     let rows = item(f ? 'هوية المديرة' : 'هوية المدير', s.identity ? `<span class="ltr">${esc(s.identity)}</span>` : NONE)
       + item(f ? 'جوال المديرة' : 'جوال المدير', ph ? `<a href="tel:${ph}">${ph}</a>` : NONE)
       + item('البريد الإلكتروني', s.email ? `<a href="mailto:${esc(s.email)}">${esc(s.email)}</a>` : NONE, true);
-    if (s.assigned) rows += item('المكلفة', esc(s.assigned));
-    if (s.assignedPhone) rows += item('الهاتف', `<a href="tel:${localPhone(s.assignedPhone)}">${localPhone(s.assignedPhone)}</a>`);
+    if (editor) {
+      const dp = deputyOf(s), dph = localPhone(dp.phone);
+      rows += `<div class="detail wide dep-title"><dt>${f ? 'الوكيلة' : 'الوكيل'} · للمسؤول فقط</dt></div>`
+        + item('اسم الوكيل/ة', dp.name ? esc(dp.name) : NONE)
+        + item('رقم الوكيل/ة', dph ? `<a href="tel:${dph}">${dph}</a>` : NONE)
+        + item('هوية الوكيل/ة', dp.identity ? `<span class="ltr">${esc(dp.identity)}</span>` : NONE);
+    }
     const links = (wa ? `<a class="wa" href="https://wa.me/${wa}" target="_blank" rel="noopener">${ICON_WA}واتساب</a><a href="tel:${ph}">${ICON_PHONE}اتصال</a>` : '')
       + (s.email ? `<a href="mailto:${esc(s.email)}">${ICON_MAIL}بريد</a>` : '');
     return `<div class="contact"><div class="contact-title">${ICON_LOCK}بيانات الإدارة</div><dl class="details">${rows}</dl>${links ? `<div class="links">${links}</div>` : ''}</div>`;
@@ -175,7 +182,7 @@ ${why}
 <div class="detail"><dt>مكتب التعليم</dt><dd>${dd(s.office)}</dd></div>
 <div class="detail"><dt>السلطة</dt><dd>${dd(s.authority)}</dd></div>
 <div class="detail wide"><dt>${managerTitle(s)}</dt><dd>${dd(s.manager)}</dd></div>
-</dl>${contactBlock(s)}${g}<button type="button" class="view-all" data-view="${s.id}">${ICON_EYE}عرض جميع البيانات</button>${admin ? `<div class="edit-row"><button type="button" class="ebtn" data-edit="${s.id}">${ICON_EDIT}تعديل</button><button type="button" class="ebtn del" data-del="${s.id}">${ICON_DEL}حذف</button></div>` : ''}</article>`;
+</dl>${contactBlock(s)}${g}<button type="button" class="view-all" data-view="${s.id}">${ICON_EYE}عرض جميع البيانات</button>${editor ? `<div class="edit-row"><button type="button" class="ebtn" data-edit="${s.id}">${ICON_EDIT}تعديل</button><button type="button" class="ebtn del" data-del="${s.id}">${ICON_DEL}حذف</button></div>` : ''}</article>`;
   }
 
   function render() {
@@ -429,8 +436,9 @@ ${why}
   }
   const ADMIN_COLS = [
     ['هوية المدير / المديرة', 14, s => s.identity], ['جوال المدير / المديرة', 14, s => localPhone(s.phone)],
-    ['البريد الإلكتروني', 32, s => s.email], ['المكلفة', 22, s => s.assigned], ['الهاتف', 14, s => localPhone(s.assignedPhone)]
+    ['البريد الإلكتروني', 32, s => s.email]
   ];
+  const DEPUTY_COLS = [['اسم الوكيل/ة', 28, s => deputyOf(s).name || ''], ['رقم الوكيل/ة', 14, s => localPhone(deputyOf(s).phone)], ['هوية الوكيل/ة', 14, s => deputyOf(s).identity || '']];
   const COLS = [
     ['م', 6, (s, i) => i + 1], ['الرقم الوزاري', 14, s => s.code], ['اسم المدرسة', 46, s => s.name], ['المرحلة', 18, s => s.stage],
     ['الجنس', 9, s => s.gender], ['نوع التعليم', 20, s => s.type], ['مكتب التعليم', 18, s => s.office],
@@ -462,7 +470,7 @@ ${why}
       await loadExcel();
       const wb = newBook();
       const ws = wb.addWorksheet('المدارس', { views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }] });
-      const cols = admin ? COLS.concat(ADMIN_COLS) : COLS;
+      const cols = COLS.concat(admin ? ADMIN_COLS : [], editor ? DEPUTY_COLS : []);
       ws.columns = cols.map(([h, w]) => ({ header: h, width: w }));
       styleHead(ws.getRow(1));
       rows.forEach((s, i) => {
@@ -490,6 +498,9 @@ ${why}
 
   /* ---------- all data of one school, every column of the Excel sheet ---------- */
   let detailsId = null, pendingDetails = null;
+  const PHONE_RE = /جوال|الهاتف|رقم الوكيل/;
+  function deputyOf(s) { return (editor && editorData.deputies && editorData.deputies[depKey(s.code)]) || {}; }
+  const depKey = c => String(c || '').trim().toUpperCase().replace(/[.#$\[\]\/]/g, '_');
   function detailRows(s) {
     const pub = META.cols || [], sec = META.secretCols || [], order = META.order || pub;
     const out = [];
@@ -499,11 +510,12 @@ ${why}
       const si = sec.indexOf(h);
       if (si >= 0) out.push(admin ? { h, v: (s.rawSecret || [])[si] || '', sec: true } : { h, locked: true });
     }
+    if (editor) { const dp = deputyOf(s); out.push({ h: 'اسم الوكيل/ة', v: dp.name || '', dep: true }, { h: 'رقم الوكيل/ة', v: dp.phone || '', dep: true }, { h: 'هوية الوكيل/ة', v: dp.identity || '', dep: true }); }
     return out;
   }
   function valueHtml(h, v) {
     if (!v) return '<span class="none">فارغ في الملف</span>';
-    if (/جوال|الهاتف/.test(h)) { const l = localPhone(v); return `<a class="ltr" href="tel:${l}">${esc(l)}</a>`; }
+    if (PHONE_RE.test(h)) { const l = localPhone(v); return `<a class="ltr" href="tel:${l}">${esc(l)}</a>`; }
     if (/البريد/.test(h)) return `<a href="mailto:${esc(v)}">${esc(v)}</a>`;
     if (/هوية|الرقم الوزاري/.test(h)) return `<span class="ltr">${esc(v)}</span>`;
     return esc(v);
@@ -516,13 +528,13 @@ ${why}
     const locked = rows.some(r => r.locked);
     let html = rows.map(r => r.locked
       ? `<tr class="locked"><th>${esc(r.h)}</th><td>${ICON_LOCK.replace('<svg', '<svg width="14" height="14"')} تظهر بعد دخول الإدارة</td></tr>`
-      : `<tr class="${r.sec ? 'sec' : ''}"><th>${esc(r.h)}</th><td>${valueHtml(r.h, r.v)}</td></tr>`).join('');
+      : `<tr class="${r.sec ? 'sec' : r.dep ? 'dep' : ''}"><th>${esc(r.h)}</th><td>${valueHtml(r.h, r.v)}</td></tr>`).join('');
     html += `<tr class="group"><td colspan="2">إضافات الدليل (ليست في ملف Excel)</td></tr>`
       + `<tr class="extra"><th>القطاع / المحافظة</th><td>${esc(areaLabel(s))}</td></tr>`
       + (s.group ? `<tr class="extra"><th>مدارس المدير نفسه</th><td>${schoolsN(groupSize.get(s.group))}</td></tr>` : '');
     $('details-table').innerHTML = html;
     $('details-login').hidden = !locked || !canCrypto();
-    $('details-edit').hidden = $('details-del').hidden = !admin;
+    $('details-edit').hidden = $('details-del').hidden = !editor;
     if (!$('details-dialog').open) $('details-dialog').showModal();
   }
   /* printable card: header, all data, director and signature */
@@ -536,14 +548,15 @@ ${why}
   const hijriSpace = t => String(t).replace(/(\d)\s*هـ/g, '$1 هـ');
   function printValue(h, v) {
     if (!v) return '<span class="none">—</span>';
-    if (/جوال|الهاتف/.test(h)) return `<span class="ltr">${esc(localPhone(v))}</span>`;
+    if (PHONE_RE.test(h)) return `<span class="ltr">${esc(localPhone(v))}</span>`;
     if (/هوية|البريد|الرقم الوزاري/.test(h)) return `<span class="ltr">${esc(v)}</span>`;
     return esc(v);
   }
   function schoolCardHtml(s) {
     const rows = detailRows(s).filter(r => !r.locked && r.h !== 'اسم المدرسة' && r.h !== 'الرقم الوزاري');
-    const isMgr = r => r.sec || /مدير/.test(r.h);
-    const school = rows.filter(r => !isMgr(r)).concat([{ h: 'القطاع / المحافظة', v: areaLabel(s) }]);
+    const deps = rows.filter(r => r.dep);
+    const isMgr = r => !r.dep && (r.sec || /مدير/.test(r.h));
+    const school = rows.filter(r => !isMgr(r) && !r.dep).concat([{ h: 'القطاع / المحافظة', v: areaLabel(s) }]);
     const mgr = rows.filter(isMgr);
     const cell = r => `<th>${esc(r.h)}</th><td>${printValue(r.h, r.v)}</td>`;
     const pairs = list => { let out = ''; for (let i = 0; i < list.length; i += 2) out += `<tr>${cell(list[i])}${list[i + 1] ? cell(list[i + 1]) : '<th></th><td></td>'}</tr>`; return out; };
@@ -553,9 +566,7 @@ ${why}
     const name = mgr.find(r => /اسم مدير/.test(r.h)); if (name) mgrRows += wideRow(name);
     mgrRows += pairs(['هوية مدير المدرسة', 'جوال مدير المدرسة'].map(by).filter(Boolean));
     const mail = mgr.find(r => /البريد/.test(r.h)); if (mail) mgrRows += wideRow(mail);
-    const extra = ['المكلفة', 'الهاتف'].map(by).filter(r => r && r.v);
-    mgrRows += pairs(extra);
-    const rest = mgr.filter(r => r !== name && r !== mail && !['هوية مدير المدرسة', 'جوال مدير المدرسة', 'المكلفة', 'الهاتف'].includes(r.h));
+    const rest = mgr.filter(r => r !== name && r !== mail && !['هوية مدير المدرسة', 'جوال مدير المدرسة'].includes(r.h));
     mgrRows += pairs(rest);
     const f = s.gender === 'بنات';
     return `<div class="sp">
@@ -567,6 +578,7 @@ ${why}
 <table class="sp-table"><tbody>
 <tr class="sec-title"><td colspan="4">بيانات المدرسة</td></tr>${pairs(school)}
 <tr class="sec-title"><td colspan="4">بيانات ${f ? 'مديرة' : 'مدير'} المدرسة</td></tr>${mgrRows}
+${deps.length && deps.some(r => r.v) ? `<tr class="sec-title"><td colspan="4">بيانات ${f ? 'الوكيلة' : 'الوكيل'}</td></tr>${wideRow(deps[0])}${pairs(deps.slice(1))}` : ''}
 </tbody></table>
 <div class="sp-sign"><div class="sp-sign-box"><span>مدير إدارة الإدارة المدرسية</span><b>د. سعيد الحربي</b><div class="sp-line">التوقيع: ..................................................</div></div></div>
 </div>`;
@@ -611,7 +623,7 @@ ${why}
 
   $('details-copy').addEventListener('click', () => {
     const s = byId.get(detailsId); if (!s) return;
-    const text = [s.name, ...detailRows(s).filter(r => !r.locked).map(r => `${r.h}: ${/جوال|الهاتف/.test(r.h) ? localPhone(r.v) : (r.v || '—')}`), `القطاع / المحافظة: ${areaLabel(s)}`].join('\n');
+    const text = [s.name, ...detailRows(s).filter(r => !r.locked).map(r => `${r.h}: ${PHONE_RE.test(r.h) ? localPhone(r.v) : (r.v || '—')}`), `القطاع / المحافظة: ${areaLabel(s)}`].join('\n');
     copyText(text).then(() => toast('نُسخت بيانات المدرسة'));
   });
   $('details-login').addEventListener('click', () => {
@@ -661,14 +673,21 @@ ${why}
     b.hidden = !canCrypto();
     b.classList.toggle('on', admin);
     $('admin-label').textContent = admin ? 'الإدارة · خروج' : 'دخول الإدارة';
-    $('add-school').hidden = !admin;
+    $('add-school').hidden = !editor;
+    $('owner-label').textContent = editor ? 'المسؤول · خروج' : 'المسؤول';
+    $('owner-btn').classList.toggle('on', editor);
     b.setAttribute('aria-label', admin ? 'الخروج من وضع الإدارة' : 'دخول الإدارة لعرض بيانات المديرين');
     $('export-note').textContent = admin
       ? 'يحتوي الملف على ورقة المدارس بكل بياناتها، ومنها هوية المدير وجواله وبريده، وورقة للإحصاءات. احفظه في مكان آمن.'
       : 'يحتوي الملف على ورقة المدارس بكل بياناتها، وورقة للإحصاءات. لا يتضمن أرقام الهويات ولا الجوالات ولا البريد إلا بعد دخول الإدارة.';
   }
+  $('login-dialog').addEventListener('close', () => {
+    if (linkResolve) { const r = linkResolve; linkResolve = null; r(null); }
+    $('login-title').textContent = 'دخول الإدارة';
+    $('login-note').textContent = 'بعد الدخول تظهر لكل مدرسة هوية المدير وجواله وبريده، ويمكن البحث بها وتصديرها إلى Excel.';
+  });
   $('admin-btn').addEventListener('click', () => {
-    if (admin) { clearKey(); location.reload(); return; }
+    if (admin) { clearKey(); dropSession(); location.reload(); return; }
     $('login-error').textContent = ''; $('pw').value = ''; $('login-dialog').showModal(); $('pw').focus();
   });
   $('login-form').addEventListener('submit', async e => {
@@ -680,6 +699,7 @@ ${why}
       const rows = await decryptWith(key);
       await storeKey(key, $('remember').checked);
       adminKey = key;
+      if (linkResolve) { const r = linkResolve; linkResolve = null; $('login-dialog').close(); applySecret(rows); r(key); return; }
       $('login-dialog').close(); applySecret(rows);
       toast('تم الدخول: تظهر الآن بيانات المديرين في كل بطاقة');
       if (pendingDetails !== null) { openDetails(pendingDetails); pendingDetails = null; }
@@ -689,10 +709,10 @@ ${why}
 
   /* ---------- editing: add / edit / delete schools, saved as a commit to the site's GitHub repository ---------- */
   const REPO = { owner: 'makkah-schools', repo: 'makkah-schools.github.io', branch: 'main' };
-  const TOKEN_NAME = 'makkah-schools-gh-token';
+  const TOKEN_NAME = 'makkah-schools-gh-token';  // old per-device key: removed, the key now lives in the owner's Firebase data
+  try { localStorage.removeItem(TOKEN_NAME); } catch (e) { /* ignore */ }
   const HISTORY_URL = `https://github.com/${REPO.owner}/${REPO.repo}/commits/${REPO.branch}/data.js`;
-  const getToken = () => { try { return localStorage.getItem(TOKEN_NAME) || ''; } catch (e) { return ''; } };
-  const setToken = t => { try { t ? localStorage.setItem(TOKEN_NAME, t) : localStorage.removeItem(TOKEN_NAME); } catch (e) { /* ignore */ } };
+  const getToken = () => editorData.github_token || '';
 
   // same normalisation as tools/prepare.py, so edited rows look like imported ones
   const nAr = x => String(x || '').replace(/[ً-ٰٟـ]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
@@ -733,7 +753,7 @@ ${why}
     'المرحلة': { req: true, select: true }, 'جنس المدرسة': { req: true, select: true },
     'هوية مدير المدرسة': { ltr: true, sec: true, inputmode: 'numeric' }, 'جوال مدير المدرسة': { ltr: true, sec: true, inputmode: 'tel' },
     'البريد الإلكتروني لمدير المدرسة': { ltr: true, sec: true, type: 'email', wide: true }, 'اسم مدير المدرسة': { wide: true, sec: true },
-    'المكلفة': { sec: true }, 'الهاتف': { ltr: true, sec: true, inputmode: 'tel' }
+    'اسم الوكيل/ة': { wide: true, dep: true }, 'رقم الوكيل/ة': { ltr: true, dep: true, inputmode: 'tel' }, 'هوية الوكيل/ة': { ltr: true, dep: true, inputmode: 'numeric' }
   };
   const isMgrCol = h => (META.secretCols || []).includes(h) || h === 'اسم مدير المدرسة';
   function distinctRaw(h) {
@@ -765,8 +785,9 @@ ${why}
     return new Promise(res => { tokenResolve = res; openTokenDialog(); });
   }
   async function openEditor(id) {
-    if (!admin || !adminKey) { toast('ادخل بوضع الإدارة أولًا'); return; }
+    if (!editor || !adminKey) { toast('هذه العملية للمسؤول فقط'); return; }
     if (!(await ensureToken())) return;
+    if (migrationP) await migrationP;
     editId = id;
     const s = id === null ? null : byId.get(id);
     const val = h => {
@@ -775,19 +796,22 @@ ${why}
       const si = (META.secretCols || []).indexOf(h); return si >= 0 ? (s.rawSecret || [])[si] || '' : '';
     };
     const PREF = ['الرقم الوزاري', 'اسم المدرسة', 'المرحلة', 'جنس المدرسة', 'نوع التعليم', 'مكتب التعليم', 'المدينة/القرية', 'المنطقة الإدارية', 'السلطة',
-      'اسم مدير المدرسة', 'هوية مدير المدرسة', 'جوال مدير المدرسة', 'البريد الإلكتروني لمدير المدرسة', 'المكلفة', 'الهاتف'];
+      'اسم مدير المدرسة', 'هوية مدير المدرسة', 'جوال مدير المدرسة', 'البريد الإلكتروني لمدير المدرسة'];
     const all = (META.order || []).filter(h => h !== 'م');
     const order = PREF.filter(h => all.includes(h)).concat(all.filter(h => !PREF.includes(h)));
     const schoolF = order.filter(h => !isMgrCol(h)), mgrF = order.filter(isMgrCol);
     const area = s ? (s.sector ? 'sector:' + s.sector : 'gov:' + s.gov) : 'gov:غير محدد';
     editOrig = { __area: area }; for (const h of META.order || []) editOrig[h] = val(h);
+    const dp = s ? deputyOf(s) : {};
+    editOrig['اسم الوكيل/ة'] = dp.name || ''; editOrig['رقم الوكيل/ة'] = dp.phone ? localPhone(dp.phone) : ''; editOrig['هوية الوكيل/ة'] = dp.identity || '';
     $('edit-title').textContent = s ? `تعديل: ${s.name}` : 'إضافة مدرسة جديدة';
     const areaField = `<div class="ef"><label for="ef-area">القطاع / المحافظة <span class="req">*</span></label><select id="ef-area" name="__area">${areaOptions(area)}</select></div>`;
     const at = Math.max(schoolF.indexOf('مكتب التعليم'), 0) + 1;
     const schoolHtml = schoolF.map(h => fieldHtml(h, val(h)));
     schoolHtml.splice(at, 0, areaField);
     $('edit-fields').innerHTML = `<h4 class="ef-sec">بيانات المدرسة</h4><div class="ef-grid">${schoolHtml.join('')}</div>`
-      + `<h4 class="ef-sec">بيانات المدير أو المديرة</h4><div class="ef-grid">${mgrF.map(h => fieldHtml(h, val(h))).join('')}</div>`;
+      + `<h4 class="ef-sec">بيانات المدير أو المديرة</h4><div class="ef-grid">${mgrF.map(h => fieldHtml(h, val(h))).join('')}</div>`
+      + `<h4 class="ef-sec">بيانات الوكيل/ة <small>تظهر للمسؤول فقط</small></h4><div class="ef-grid">${['اسم الوكيل/ة', 'رقم الوكيل/ة', 'هوية الوكيل/ة'].map(h => fieldHtml(h, editOrig[h])).join('')}</div>`;
     $('edit-error').textContent = '';
     $('edit-save').textContent = s ? 'حفظ التعديل' : 'إضافة المدرسة';
     if ($('details-dialog').open) $('details-dialog').close();
@@ -798,9 +822,8 @@ ${why}
     const vals = {}, errs = [];
     $('edit-fields').querySelectorAll('[name]').forEach(el => { vals[el.name] = el.value.trim(); });
     for (const [h, k] of Object.entries(FIELD_KIND)) if (k.req && (META.order || []).includes(h) && !vals[h]) errs.push(`«${h}» مطلوب`);
-    const idv = vals['هوية مدير المدرسة'];
-    if (idv && !/^\d{10}$/.test(digits(idv))) errs.push('رقم الهوية يجب أن يكون 10 أرقام');
-    for (const h of ['جوال مدير المدرسة', 'الهاتف']) { const v = vals[h]; if (v && !/^0?5\d{8}$/.test(localPhone(v))) errs.push(`«${h}» يجب أن يكون رقم جوال مثل 05xxxxxxxx`); }
+    for (const h of ['هوية مدير المدرسة', 'هوية الوكيل/ة']) { const v = vals[h]; if (v && !/^\d{10}$/.test(digits(v))) errs.push(`«${h}» يجب أن يكون 10 أرقام`); }
+    for (const h of ['جوال مدير المدرسة', 'رقم الوكيل/ة']) { const v = vals[h]; if (v && !/^0?5\d{8}$/.test(localPhone(v))) errs.push(`«${h}» يجب أن يكون رقم جوال مثل 05xxxxxxxx`); }
     const em = vals['البريد الإلكتروني لمدير المدرسة'];
     if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) errs.push('البريد الإلكتروني غير صحيح');
     return { vals, errs };
@@ -808,7 +831,7 @@ ${why}
   function buildRow(vals, id, prevRaw, prevSecRaw) {
     const g = h => (vals[h] ?? '').trim();
     if (vals['هوية مدير المدرسة']) vals['هوية مدير المدرسة'] = digits(vals['هوية مدير المدرسة']);
-    for (const h of ['جوال مدير المدرسة', 'الهاتف']) if (vals[h]) vals[h] = phoneStore(vals[h]);
+    for (const h of ['جوال مدير المدرسة']) if (vals[h]) vals[h] = phoneStore(vals[h]);
     const raw = (META.cols || []).map((h, i) => h in vals ? g(h) : (prevRaw || [])[i] || '');
     const rawSecret = (META.secretCols || []).map((h, i) => h in vals ? g(h) : (prevSecRaw || [])[i] || '');
     const [k, v] = (vals.__area || 'gov:غير محدد').split(':');
@@ -818,7 +841,7 @@ ${why}
       authority: cleanText(g('السلطة')), region: cleanText(g('المنطقة الإدارية')), manager: g('اسم مدير المدرسة').replace(/\s+/g, ' '),
       raw, gov: k === 'sector' ? 'مكة المكرمة' : v, sector: k === 'sector' ? v : ''
     };
-    const sec = { identity: g('هوية مدير المدرسة'), phone: g('جوال مدير المدرسة'), email: g('البريد الإلكتروني لمدير المدرسة'), assigned: g('المكلفة'), assignedPhone: g('الهاتف') };
+    const sec = { identity: g('هوية مدير المدرسة'), phone: g('جوال مدير المدرسة'), email: g('البريد الإلكتروني لمدير المدرسة') };
     for (const x of Object.keys(sec)) if (!sec[x]) delete sec[x];
     sec.rawSecret = rawSecret;
     return { row, sec };
@@ -914,7 +937,6 @@ ${why}
     try { await work(); return true; }
     catch (e) {
       errEl.textContent = e.message || 'تعذّر الحفظ';
-      if (e.status === 401) { setToken(''); }
       return false;
     } finally { btn.disabled = false; btn.textContent = label; }
   }
@@ -938,8 +960,8 @@ ${why}
     for (const [h, v] of Object.entries(vals)) {
       if (h === '__area') { if (v !== editOrig.__area) out.push(['القطاع / المحافظة', areaText(editOrig.__area), areaText(v)]); continue; }
       const old = String(editOrig[h] ?? '').trim();
-      const same = /جوال|الهاتف/.test(h) ? localPhone(old) === localPhone(v) : /هوية/.test(h) ? digits(old) === digits(v) : old === v;
-      if (!same) out.push([h, /جوال|الهاتف/.test(h) ? localPhone(old) : old, /جوال|الهاتف/.test(h) ? localPhone(v) : v]);
+      const same = PHONE_RE.test(h) ? localPhone(old) === localPhone(v) : /هوية/.test(h) ? digits(old) === digits(v) : old === v;
+      if (!same) out.push([h, PHONE_RE.test(h) ? localPhone(old) : old, PHONE_RE.test(h) ? localPhone(v) : v]);
     }
     return out;
   }
@@ -966,6 +988,8 @@ ${why}
           schools[i] = row; rows[editId] = sec;
         }
       }, isNew ? `إضافة مدرسة: ${vals['اسم المدرسة']} (${vals['الرقم الوزاري']})` : `تعديل مدرسة: ${oldName} (${vals['الرقم الوزاري']})`);
+      const oldCode = isNew ? '' : (byId.get(editId) || {}).code;
+      await saveDeputy(oldCode, vals['الرقم الوزاري'], { name: vals['اسم الوكيل/ة'], phone: vals['رقم الوكيل/ة'] ? phoneStore(vals['رقم الوكيل/ة']) : '', identity: digits(vals['هوية الوكيل/ة']) });
       reloadData(res);
       $('edit-dialog').close();
       toast(isNew ? 'أُضيفت المدرسة، وتظهر للجميع خلال دقائق' : 'حُفظ التعديل، ويظهر للجميع خلال دقائق');
@@ -989,7 +1013,7 @@ ${why}
   });
 
   async function askDelete(id) {
-    if (!admin || !adminKey) { toast('ادخل بوضع الإدارة أولًا'); return; }
+    if (!editor || !adminKey) { toast('هذه العملية للمسؤول فقط'); return; }
     const s = byId.get(id); if (!s) return;
     if ($('details-dialog').open) $('details-dialog').close();
     confirmBox({
@@ -1003,6 +1027,7 @@ ${why}
           if (i < 0) throw new Error('هذه المدرسة حُذفت من قبل. حدّث الصفحة.');
           schools.splice(i, 1); delete rows[id];
         }, `حذف مدرسة: ${s.name} (${s.code})`);
+        await saveDeputy(s.code, '', {});
         reloadData(res);
         toast('حُذفت المدرسة، ويمكن استرجاعها من سجل التعديلات');
       }
@@ -1012,11 +1037,12 @@ ${why}
   $('details-edit').addEventListener('click', () => openEditor(detailsId));
   $('details-del').addEventListener('click', () => askDelete(detailsId));
 
-  // ---- GitHub key setup (stored on this device only) ----
+  // ---- GitHub key: kept in the owner's Firebase data, so it works on every device after the owner signs in ----
   let tokenResolve = null;
   function openTokenDialog() {
+    if (!editor) { toast('هذه العملية للمسؤول فقط'); return; }
     $('gh-token').value = ''; $('token-error').textContent = '';
-    $('token-state').textContent = getToken() ? 'يوجد مفتاح محفوظ على هذا الجهاز. أدخل مفتاحًا جديدًا لاستبداله.' : 'لا يوجد مفتاح محفوظ على هذا الجهاز.';
+    $('token-state').textContent = getToken() ? 'يوجد مفتاح محفوظ في حساب المسؤول. أدخل مفتاحًا جديدًا لاستبداله.' : 'لا يوجد مفتاح محفوظ في حساب المسؤول بعد.';
     $('token-clear').hidden = !getToken();
     $('token-dialog').showModal();
   }
@@ -1024,18 +1050,160 @@ ${why}
   $('token-form').addEventListener('submit', async e => {
     e.preventDefault();
     const t = $('gh-token').value.trim(); if (!t) return;
-    const old = getToken(); setToken(t);
+    const old = getToken(); editorData.github_token = t;
     const btn = $('token-save'); btn.disabled = true; btn.textContent = 'جارٍ التحقق…'; $('token-error').textContent = '';
     try {
       const repo = await gh('');
       if (repo.permissions && repo.permissions.push === false) throw new Error('المفتاح يقرأ المستودع لكنه لا يملك صلاحية الكتابة.');
       await gh(`/git/ref/heads/${REPO.branch}`);
-      $('token-dialog').close(); toast('حُفظ مفتاح GitHub على هذا الجهاز');
-    } catch (err) { setToken(old); $('token-error').textContent = err.message; }
+      await rtdb('/github_token', 'PUT', t);
+      btn.textContent = 'جارٍ تجهيز البيانات…';
+      await migrateDeputies();
+      $('token-dialog').close(); toast('حُفظ مفتاح GitHub في حساب المسؤول');
+    } catch (err) { editorData.github_token = old; $('token-error').textContent = err.message; }
     finally { btn.disabled = false; btn.textContent = 'حفظ المفتاح'; }
   });
-  $('token-clear').addEventListener('click', () => { setToken(''); $('token-dialog').close(); toast('حُذف مفتاح GitHub من هذا الجهاز'); });
+  $('token-clear').addEventListener('click', async () => {
+    try { await rtdb('/github_token', 'DELETE'); editorData.github_token = ''; $('token-dialog').close(); toast('حُذف مفتاح GitHub من حساب المسؤول'); }
+    catch (e) { $('token-error').textContent = e.message; }
+  });
   $('open-token').addEventListener('click', () => { $('edit-dialog').close(); openTokenDialog(); });
+
+  /* ---------- database owner: Firebase sign-in (wra003@hotmail.com only) ---------- */
+  const FB = {
+    key: 'AIzaSyC6wEGujd2sMdmvxw20F73FcoVywFaDtB0',
+    db: 'https://makkah-schools-default-rtdb.europe-west1.firebasedatabase.app',
+    email: 'wra003@hotmail.com'
+  };
+  const SESSION_NAME = 'makkah-schools-owner';
+  let session = null;  // { idToken, refreshToken, exp }
+  const FB_ERRORS = {
+    INVALID_LOGIN_CREDENTIALS: 'كلمة المرور غير صحيحة، أو لم يُنشأ حساب المسؤول بعد.',
+    INVALID_PASSWORD: 'كلمة المرور غير صحيحة.', EMAIL_NOT_FOUND: 'لم يُنشأ حساب المسؤول بعد.',
+    USER_DISABLED: 'حساب المسؤول موقوف.', TOO_MANY_ATTEMPTS_TRY_LATER: 'محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة.',
+    PASSWORD_LOGIN_DISABLED: 'الدخول بكلمة المرور غير مفعّل في Firebase.'
+  };
+  async function fbPost(url, body, form) {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': form ? 'application/x-www-form-urlencoded' : 'application/json' }, body: form ? new URLSearchParams(body) : JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { const code = String((j.error && j.error.message) || r.status).split(' ')[0]; throw new Error(FB_ERRORS[code] || ('تعذّر الاتصال بخدمة الدخول: ' + code)); }
+    return j;
+  }
+  function keepSession(s, remember) {
+    session = s;
+    try {
+      localStorage.removeItem(SESSION_NAME); sessionStorage.removeItem(SESSION_NAME);
+      (remember ? localStorage : sessionStorage).setItem(SESSION_NAME, JSON.stringify({ r: s.refreshToken }));
+    } catch (e) { /* storage unavailable */ }
+  }
+  function dropSession() { session = null; try { localStorage.removeItem(SESSION_NAME); sessionStorage.removeItem(SESSION_NAME); } catch (e) { /* ignore */ } }
+  async function idToken() {
+    if (!session) throw new Error('انتهت جلسة المسؤول. ادخل من جديد.');
+    if (Date.now() > session.exp - 60000) {
+      const j = await fbPost(`https://securetoken.googleapis.com/v1/token?key=${FB.key}`, { grant_type: 'refresh_token', refresh_token: session.refreshToken }, true);
+      session = { idToken: j.id_token, refreshToken: j.refresh_token, exp: Date.now() + (+j.expires_in || 3600) * 1000 };
+    }
+    return session.idToken;
+  }
+  async function rtdb(path, method = 'GET', body) {
+    const r = await fetch(`${FB.db}/editor${path}.json?auth=${encodeURIComponent(await idToken())}`, { method, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? 'لا تملك صلاحية المسؤول على هذه البيانات.' : 'تعذّر الاتصال بقاعدة بيانات المسؤول.');
+    return r.json();
+  }
+  async function saveDeputy(oldCode, newCode, dep) {
+    const clean = {}; for (const k of ['name', 'phone', 'identity']) if (dep[k]) clean[k] = String(dep[k]).trim();
+    const oldK = oldCode ? depKey(oldCode) : '', newK = newCode ? depKey(newCode) : '';
+    if (oldK && oldK !== newK) { await rtdb(`/deputies/${encodeURIComponent(oldK)}`, 'DELETE'); delete editorData.deputies[oldK]; }
+    if (!newK) return;
+    if (Object.keys(clean).length) { await rtdb(`/deputies/${encodeURIComponent(newK)}`, 'PUT', clean); editorData.deputies[newK] = clean; }
+    else if (editorData.deputies[newK]) { await rtdb(`/deputies/${encodeURIComponent(newK)}`, 'DELETE'); delete editorData.deputies[newK]; }
+  }
+  // the old «المكلفة / الهاتف» values (kept encrypted until now) move once to the owner's deputy data
+  let migrationP = null;
+  function migrateDeputies() {
+    if (migrationP) return migrationP;
+    if (!editor || !adminKey || !getToken()) return Promise.resolve();
+    const pending = DATA.filter(s => s.pendingDeputy);
+    if (!pending.length) return Promise.resolve();
+    migrationP = (async () => {
+      try {
+        for (const s of pending) if (!editorData.deputies[depKey(s.code)]) await saveDeputy('', s.code, s.pendingDeputy);
+        const res = await commitChange((schools, rows) => { for (const k of Object.keys(rows)) delete rows[k].pendingDeputy; }, 'نقل بيانات «المكلفة» إلى بيانات الوكيل/ة الخاصة بالمسؤول');
+        reloadData(res); toast('نُقلت بيانات «المكلفة» إلى بيانات الوكيل/ة');
+      } catch (e) { console.warn('deputy migration', e); }
+    })().finally(() => { migrationP = null; });
+    return migrationP;
+  }
+  async function linkViewKey() {
+    // the owner links the viewing password once; its key is kept in the owner's Firebase data
+    return new Promise(res => {
+      linkResolve = res;
+      $('login-title').textContent = 'ربط كلمة مرور الاطلاع';
+      $('login-note').textContent = 'أدخل كلمة مرور الاطلاع مرة واحدة لتُربط بحساب المسؤول، فتظهر بيانات المديرين تلقائيًا بعد كل دخول.';
+      $('login-error').textContent = ''; $('pw').value = ''; $('login-dialog').showModal(); $('pw').focus();
+    });
+  }
+  let linkResolve = null;
+  async function enterOwnerMode(data) {
+    editorData = { deputies: {}, ...(data || {}) };
+    if (!editorData.deputies) editorData.deputies = {};
+    let key = null;
+    if (editorData.aes_key) {
+      try { key = await crypto.subtle.importKey('raw', b64d(editorData.aes_key), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']); applySecret(await decryptWith(key)); adminKey = key; }
+      catch (e) { key = null; }
+    }
+    if (!key && adminKey && admin) {
+      try { const raw = await crypto.subtle.exportKey('raw', adminKey); await rtdb('/aes_key', 'PUT', b64e(raw)); editorData.aes_key = b64e(raw); key = adminKey; } catch (e) { /* key not exportable: ask below */ }
+    }
+    if (!key) {
+      const k = await linkViewKey();
+      if (!k) { toast('دخلت كمسؤول، لكن تعديل البيانات يحتاج ربط كلمة مرور الاطلاع'); }
+      else { await rtdb('/aes_key', 'PUT', b64e(await crypto.subtle.exportKey('raw', k))); editorData.aes_key = 'set'; }
+    }
+    editor = true; index = null; adminUI(); updateModeText(); update(true);
+    migrateDeputies();
+  }
+  async function resumeOwner() {
+    let stored = null;
+    try { stored = JSON.parse(localStorage.getItem(SESSION_NAME) || sessionStorage.getItem(SESSION_NAME) || 'null'); } catch (e) { stored = null; }
+    if (!stored || !stored.r) return;
+    try {
+      session = { idToken: '', refreshToken: stored.r, exp: 0 };
+      await idToken();
+      await enterOwnerMode(await rtdb(''));
+    } catch (e) { dropSession(); }
+  }
+  function openOwnerDialog() {
+    $('owner-error').textContent = ''; $('owner-msg').textContent = ''; $('owner-pw').value = '';
+    $('owner-dialog').showModal(); $('owner-pw').focus();
+  }
+  $('owner-btn').addEventListener('click', () => {
+    if (editor) { dropSession(); location.reload(); return; }
+    openOwnerDialog();
+  });
+  $('owner-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const pw = $('owner-pw').value; if (!pw) return;
+    const go = $('owner-go'); go.disabled = true; go.textContent = 'جارٍ الدخول…'; $('owner-error').textContent = ''; $('owner-msg').textContent = '';
+    try {
+      const j = await fbPost(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FB.key}`, { email: FB.email, password: pw, returnSecureToken: true });
+      if (String(j.email || '').toLowerCase() !== FB.email) throw new Error('هذا الحساب لا يملك صلاحية المسؤول.');
+      keepSession({ idToken: j.idToken, refreshToken: j.refreshToken, exp: Date.now() + (+j.expiresIn || 3600) * 1000 }, $('owner-remember').checked);
+      const data = await rtdb('');
+      $('owner-dialog').close();
+      await enterOwnerMode(data);
+      toast('تم دخول المسؤول: تظهر أزرار الإضافة والتعديل والحذف وبيانات الوكلاء');
+    } catch (err) { dropSession(); $('owner-error').textContent = err.message; $('owner-pw').select(); }
+    finally { go.disabled = false; go.textContent = 'دخول'; }
+  });
+  $('owner-forgot').addEventListener('click', async () => {
+    const b = $('owner-forgot'); b.disabled = true; $('owner-error').textContent = ''; $('owner-msg').textContent = 'جارٍ الإرسال…';
+    try {
+      await fbPost(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FB.key}`, { requestType: 'PASSWORD_RESET', email: FB.email });
+      $('owner-msg').textContent = `أُرسل رابط تعيين كلمة مرور جديدة إلى ${FB.email}. افتح البريد (وراجع الرسائل غير المرغوب فيها) واتبع الرابط.`;
+    } catch (err) { $('owner-msg').textContent = ''; $('owner-error').textContent = err.message; }
+    finally { b.disabled = false; }
+  });
   document.querySelectorAll('.history-link').forEach(a => { a.href = HISTORY_URL; });
 
   /* ---------- charts page: dashboard + custom chart, PDF/PNG download ---------- */
@@ -1370,5 +1538,5 @@ ${why}
   adminUI();
   syncControls();
   update(true);
-  if (canCrypto()) autoUnlock();
+  if (canCrypto()) autoUnlock().then(resumeOwner);
 })();

@@ -42,8 +42,11 @@ title = next((str(c) for r in rows[:hdr_i] for c in r if c), '')
 recs = [r for r in rows[hdr_i + 1:] if r and r[col['الرقم الوزاري']]]
 
 # every column of the sheet, in its original order; personal columns go only to the encrypted file
-SENSITIVE = {'هوية مدير المدرسة', 'البريد الإلكتروني لمدير المدرسة', 'جوال مدير المدرسة', 'المكلفة', 'الهاتف'}
-ORDER = [h for h in hdr if h]
+SENSITIVE = {'هوية مدير المدرسة', 'البريد الإلكتروني لمدير المدرسة', 'جوال مدير المدرسة'}
+# «المكلفة» and «الهاتف» are not shown any more: the site keeps deputy details (اسم/رقم/هوية الوكيل/ة) in Firebase,
+# readable only by the database owner. Values found here are handed over once as pendingDeputy.
+LEGACY = {'المكلفة', 'الهاتف'}
+ORDER = [h for h in hdr if h and h not in LEGACY]
 PUBLIC_COLS = [h for h in ORDER if h not in SENSITIVE]
 SECRET_COLS = [h for h in ORDER if h in SENSITIVE]
 def cell(v):
@@ -102,9 +105,10 @@ for i, r in enumerate(recs):
          '_mid': str(r[col['هوية مدير المدرسة']] or '').strip()}
     def opt(h):
         return str(r[col[h]] or '').strip() if h in col else ''
-    secret = {'identity': s['_mid'], 'phone': opt('جوال مدير المدرسة'), 'email': opt('البريد الإلكتروني لمدير المدرسة'),
-              'assigned': opt('المكلفة'), 'assignedPhone': opt('الهاتف')}
+    secret = {'identity': s['_mid'], 'phone': opt('جوال مدير المدرسة'), 'email': opt('البريد الإلكتروني لمدير المدرسة')}
     secrets_by_id[i] = {k: v for k, v in secret.items() if v}
+    dep = {k: v for k, v in (('name', opt('المكلفة')), ('phone', opt('الهاتف'))) if v}
+    if dep: secrets_by_id[i]['pendingDeputy'] = dep
     secrets_by_id[i]['rawSecret'] = [cell(r[col[h]]) for h in SECRET_COLS]
     s['raw'] = [cell(r[col[h]]) for h in PUBLIC_COLS]
     sec = by_rev.get(code, '')

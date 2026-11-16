@@ -10,7 +10,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23071d35'/%3E%3Cpath d='M20 9l11 6v2H9v-2zM11 19h3v9h-3zm7.5 0h3v9h-3zm7.5 0h3v9h-3zM9 30h22v2H9z' fill='%23d6b878'/%3E%3C/svg%3E">
 <link rel="preload" href="fonts/plex-arabic-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/plex-arabic-700.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=33285e26">
+<link rel="stylesheet" href="style.css?v=9282c984">
 </head>
 <body>
 <div class="page">
@@ -25,6 +25,7 @@
       <div class="brand-side">
         <div class="data-date">تاريخ البيانات: <b id="data-date">—</b></div>
         <button class="admin-btn" id="admin-btn" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 018 0v3"/></svg><span id="admin-label">دخول الإدارة</span></button>
+        <button class="owner-btn" id="owner-btn" type="button" aria-label="دخول مسؤول قاعدة البيانات"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/></svg><span id="owner-label">المسؤول</span></button>
       </div>
     </div>
     <div class="hero">
@@ -185,7 +186,7 @@
 <dialog id="token-dialog" aria-labelledby="token-title">
   <div class="dlg-head"><h3 id="token-title">مفتاح الحفظ على الموقع</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
   <form class="dlg-body token" id="token-form" autocomplete="off">
-    <p class="note">ليحفظ الموقع الإضافة والتعديل والحذف يحتاج مفتاحًا من GitHub خاصًا بمستودع الموقع. يُنشأ مرة واحدة، ويُحفظ على هذا الجهاز فقط.</p>
+    <p class="note">ليحفظ الموقع الإضافة والتعديل والحذف يحتاج مفتاحًا من GitHub خاصًا بمستودع الموقع. يُنشأ مرة واحدة، ويُحفظ في حساب المسؤول فيعمل على كل أجهزتك بعد الدخول.</p>
     <ol class="steps">
       <li>افتح <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">صفحة إنشاء مفتاح في GitHub</a> وأنت داخل بحساب مالك المنظمة.</li>
       <li>اكتب اسمًا مثل «دليل المدارس»، واختر مدة الصلاحية.</li>
@@ -197,14 +198,27 @@
     <p class="note" id="token-state"></p>
     <div class="field"><label for="gh-token">مفتاح GitHub</label><input id="gh-token" type="password" dir="ltr" spellcheck="false" placeholder="github_pat_…" required></div>
     <p class="err" id="token-error" role="alert"></p>
-    <div class="dlg-tools"><button class="btn primary" type="submit" id="token-save">حفظ المفتاح</button><button class="btn" type="button" data-close>إلغاء</button><button class="btn danger" type="button" id="token-clear" hidden>حذف المفتاح من هذا الجهاز</button></div>
+    <div class="dlg-tools"><button class="btn primary" type="submit" id="token-save">حفظ المفتاح</button><button class="btn" type="button" data-close>إلغاء</button><button class="btn danger" type="button" id="token-clear" hidden>حذف المفتاح</button></div>
+  </form>
+</dialog>
+
+<dialog id="owner-dialog" aria-labelledby="owner-title">
+  <div class="dlg-head"><h3 id="owner-title">دخول مسؤول قاعدة البيانات</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
+  <form class="dlg-body login" id="owner-form" autocomplete="on">
+    <p class="note">الإضافة والتعديل والحذف وبيانات الوكلاء متاحة لمسؤول قاعدة البيانات فقط.</p>
+    <div class="field"><label for="owner-email">البريد الإلكتروني</label><input id="owner-email" name="username" type="email" value="wra003@hotmail.com" readonly dir="ltr" autocomplete="username"></div>
+    <div class="field"><label for="owner-pw">كلمة المرور</label><input id="owner-pw" name="password" type="password" autocomplete="current-password" dir="ltr" spellcheck="false" required></div>
+    <label class="remember"><input type="checkbox" id="owner-remember" checked>تذكّرني على هذا الجهاز</label>
+    <p class="err" id="owner-error" role="alert"></p>
+    <p class="ok-msg" id="owner-msg" role="status"></p>
+    <div class="dlg-tools"><button class="btn primary" type="submit" id="owner-go">دخول</button><button class="btn" type="button" data-close>إلغاء</button><span class="spacer"></span><button class="linkbtn" type="button" id="owner-forgot">نسيت كلمة المرور؟</button></div>
   </form>
 </dialog>
 
 <dialog id="login-dialog" aria-labelledby="login-title">
   <div class="dlg-head"><h3 id="login-title">دخول الإدارة</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
   <form class="dlg-body login" id="login-form" autocomplete="on">
-    <p class="note">بعد الدخول تظهر لكل مدرسة هوية المدير وجواله وبريده، ويمكن البحث بها وتصديرها إلى Excel.</p>
+    <p class="note" id="login-note">بعد الدخول تظهر لكل مدرسة هوية المدير وجواله وبريده، ويمكن البحث بها وتصديرها إلى Excel.</p>
     <input type="text" name="username" value="admin" autocomplete="username" hidden>
     <div class="field"><label for="pw">كلمة المرور</label><input id="pw" name="password" type="password" autocomplete="current-password" dir="ltr" spellcheck="false" required></div>
     <label class="remember"><input type="checkbox" id="remember" checked>تذكّرني على هذا الجهاز</label>
@@ -216,9 +230,9 @@
 <div id="print-area"></div>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="data.js?v=78aed8b5"></script>
-<script src="secure.js?v=9aa04cf8"></script>
+<script src="data.js?v=b179c998"></script>
+<script src="secure.js?v=a035156a"></script>
 <script src="search.js?v=a7528e3c"></script>
-<script src="app.js?v=7476c018"></script>
+<script src="app.js?v=0a74e774"></script>
 </body>
 </html>

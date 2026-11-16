@@ -41,6 +41,10 @@ button{cursor:pointer}
 .admin-btn svg{width:16px;height:16px}
 .admin-btn.on{background:var(--green-soft);color:var(--green);border-color:#b9dcc9}
 .admin-btn[hidden]{display:none}
+.owner-btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:999px;border:1px solid #cfdbe6;background:#fff;color:var(--navy);font-weight:700;font-size:13px;white-space:nowrap}
+.owner-btn svg{width:15px;height:15px}
+.owner-btn:hover{background:var(--steel-soft)}
+.owner-btn.on{background:#fdf4e3;border-color:#e8cf9c;color:#7a5a1a}
 .data-date{font-size:13px;color:var(--muted);background:var(--steel-soft);border:1px solid #dbe4ec;border-radius:999px;padding:7px 14px;white-space:nowrap}
 .data-date b{color:var(--navy)}
 .hero{padding:26px 28px 30px;text-align:center;background:linear-gradient(180deg,var(--paper) 0%,var(--paper-2) 100%)}
@@ -160,7 +164,7 @@ dialog::backdrop{background:rgba(4,15,28,.62)}
 .login input[type=password]:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(23,63,103,.14)}
 .remember{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);cursor:pointer}
 .remember input{width:17px;height:17px;accent-color:var(--navy)}
-#login-dialog{width:min(460px,calc(100% - 24px))}
+#login-dialog,#owner-dialog{width:min(480px,calc(100% - 24px))}
 .contact{border-top:1px dashed #d3dbe2;padding-top:10px;display:grid;gap:8px}
 .contact-title{font-size:12.5px;font-weight:700;color:var(--green);display:flex;align-items:center;gap:6px}
 .contact-title svg{width:14px;height:14px}
@@ -322,6 +326,15 @@ dialog.full{width:calc(100vw - 24px);max-width:1240px;height:calc(100vh - 24px);
 .steps a{color:var(--navy);font-weight:700}
 .token .field label{display:block;font-size:14px;color:var(--navy-deep);font-weight:600;margin-bottom:6px}
 @media (max-width:620px){.ef-grid{grid-template-columns:1fr}.spacer{display:none}}
+
+/* owner-only deputy details */
+.dep-title{background:transparent!important;padding:2px 0 0!important}
+.dep-title dt{color:#7a5a1a!important;font-weight:700;font-size:12.5px}
+.all-data tr.dep th{background:#fdf4e3;color:#7a5a1a}
+.ef-sec small{font-size:12px;color:#7a5a1a;font-weight:600;margin-inline-start:6px}
+.ok-msg{color:var(--green);font-weight:600;font-size:14px;line-height:1.8}
+.ok-msg:empty{display:none}
+.login input[type=email]{width:100%;height:50px;border-radius:13px;border:1px solid var(--line);padding:0 14px;font-size:16px;background:#f3f5f7;color:var(--muted)}
 
 /* report */
 .report h2{margin:0 0 4px;font-size:22px;color:var(--navy-deep)}
