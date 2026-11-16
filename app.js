@@ -745,7 +745,7 @@ ${why}
     return `<optgroup label="مكة المكرمة">${SECTORS.map(x => opt('sector:' + x, x)).join('')}${opt('gov:مكة المكرمة', 'مكة المكرمة (قطاع غير محدد)')}</optgroup>`
       + `<optgroup label="المحافظات">${GOV_ORDER.slice(1).map(g => opt('gov:' + g, g)).join('')}</optgroup>`;
   }
-  let editId = null;
+  let editId = null, editOrig = {};
   function fieldHtml(h, value) {
     const k = FIELD_KIND[h] || {}, id = 'ef-' + (META.order || []).indexOf(h);
     const attrs = `id="${id}" name="${esc(h)}"${k.req ? ' required' : ''}${k.ltr ? ' dir="ltr"' : ''}${k.inputmode ? ` inputmode="${k.inputmode}"` : ''}`;
@@ -780,6 +780,7 @@ ${why}
     const order = PREF.filter(h => all.includes(h)).concat(all.filter(h => !PREF.includes(h)));
     const schoolF = order.filter(h => !isMgrCol(h)), mgrF = order.filter(isMgrCol);
     const area = s ? (s.sector ? 'sector:' + s.sector : 'gov:' + s.gov) : 'gov:غير محدد';
+    editOrig = { __area: area }; for (const h of META.order || []) editOrig[h] = val(h);
     $('edit-title').textContent = s ? `تعديل: ${s.name}` : 'إضافة مدرسة جديدة';
     const areaField = `<div class="ef"><label for="ef-area">القطاع / المحافظة <span class="req">*</span></label><select id="ef-area" name="__area">${areaOptions(area)}</select></div>`;
     const at = Math.max(schoolF.indexOf('مكتب التعليم'), 0) + 1;
@@ -917,12 +918,38 @@ ${why}
       return false;
     } finally { btn.disabled = false; btn.textContent = label; }
   }
+  // generic confirmation window: موافق runs the action and keeps the window open until it finishes
+  let confirmRun = null;
+  function confirmBox({ title, html, note = '', danger = false, onOk }) {
+    $('confirm-title').textContent = title; $('confirm-text').innerHTML = html;
+    $('confirm-note').innerHTML = note; $('confirm-note').hidden = !note;
+    $('confirm-error').textContent = '';
+    const go = $('confirm-go'); go.textContent = 'موافق'; go.classList.toggle('danger', danger); go.classList.toggle('primary', !danger);
+    confirmRun = onOk; $('confirm-dialog').showModal(); go.focus();
+  }
+  $('confirm-go').addEventListener('click', async () => {
+    if (!confirmRun) return;
+    const ok = await saving($('confirm-go'), $('confirm-error'), confirmRun);
+    if (ok) { confirmRun = null; $('confirm-dialog').close(); } else if (!getToken()) openTokenDialog();
+  });
+  const areaText = v => { const [k, x] = String(v || '').split(':'); return k === 'sector' ? x + ' بمكة' : x === 'مكة المكرمة' ? 'مكة المكرمة (قطاع غير محدد)' : (x || '—'); };
+  function changesOf(vals) {
+    const out = [];
+    for (const [h, v] of Object.entries(vals)) {
+      if (h === '__area') { if (v !== editOrig.__area) out.push(['القطاع / المحافظة', areaText(editOrig.__area), areaText(v)]); continue; }
+      const old = String(editOrig[h] ?? '').trim();
+      const same = /جوال|الهاتف/.test(h) ? localPhone(old) === localPhone(v) : /هوية/.test(h) ? digits(old) === digits(v) : old === v;
+      if (!same) out.push([h, /جوال|الهاتف/.test(h) ? localPhone(old) : old, /جوال|الهاتف/.test(h) ? localPhone(v) : v]);
+    }
+    return out;
+  }
   $('edit-form').addEventListener('submit', async e => {
     e.preventDefault();
     const { vals, errs } = readForm();
     if (errs.length) { $('edit-error').textContent = errs.join('، '); return; }
     const isNew = editId === null, oldName = isNew ? '' : (byId.get(editId) || {}).name;
-    const ok = await saving($('edit-save'), $('edit-error'), async () => {
+    const doSave = async () => {
+      if (!(await ensureToken())) throw new Error('يلزم مفتاح الحفظ لإتمام العملية.');
       let savedId = editId;
       const res = await commitChange((schools, rows) => {
         if (schools.some(x => sameCode(x.code, vals['الرقم الوزاري']) && x.id !== editId)) throw new Error(`الرقم الوزاري ${vals['الرقم الوزاري']} مسجّل لمدرسة أخرى.`);
@@ -943,35 +970,44 @@ ${why}
       $('edit-dialog').close();
       toast(isNew ? 'أُضيفت المدرسة، وتظهر للجميع خلال دقائق' : 'حُفظ التعديل، ويظهر للجميع خلال دقائق');
       if (isNew) { state.q = vals['الرقم الوزاري']; state.mode = 'code'; syncControls(); update(); }
+    };
+    if (isNew) {
+      const ok = await saving($('edit-save'), $('edit-error'), doSave);
+      if (!ok && !getToken()) openTokenDialog();
+      return;
+    }
+    const diff = changesOf(vals);
+    if (!diff.length) { $('edit-error').textContent = 'لم تغيّر أي بيانات.'; return; }
+    $('edit-error').textContent = '';
+    confirmBox({
+      title: 'تأكيد التعديل',
+      html: `<p>هل تريد حفظ ${diff.length === 1 ? 'هذا التعديل' : 'هذه التعديلات'} على <b>${esc(oldName)}</b>؟</p><table class="diff"><thead><tr><th>البيان</th><th>قبل</th><th>بعد</th></tr></thead><tbody>${
+        diff.map(([h, a, b]) => `<tr><td>${esc(h)}</td><td class="old">${a ? esc(a) : '—'}</td><td class="new">${b ? esc(b) : '—'}</td></tr>`).join('')}</tbody></table>`,
+      note: 'يظهر التعديل لجميع المستخدمين خلال دقائق، ويبقى في سجل التعديلات.',
+      onOk: doSave
     });
-    if (!ok && !getToken()) openTokenDialog();
   });
 
-  let deleteId = null;
-  function askDelete(id) {
+  async function askDelete(id) {
     if (!admin || !adminKey) { toast('ادخل بوضع الإدارة أولًا'); return; }
     const s = byId.get(id); if (!s) return;
-    deleteId = id;
-    $('confirm-text').innerHTML = `هل تريد حذف <b>${esc(s.name)}</b> (الرقم الوزاري <span dir="ltr">${esc(s.code)}</span>) من الدليل؟`;
-    $('confirm-error').textContent = '';
     if ($('details-dialog').open) $('details-dialog').close();
-    $('confirm-dialog').showModal();
-  }
-  $('confirm-go').addEventListener('click', async () => {
-    if (!(await ensureToken())) return;
-    const s = byId.get(deleteId); if (!s) return;
-    const ok = await saving($('confirm-go'), $('confirm-error'), async () => {
-      const res = await commitChange((schools, rows) => {
-        const i = schools.findIndex(x => x.id === deleteId);
-        if (i < 0) throw new Error('هذه المدرسة حُذفت من قبل. حدّث الصفحة.');
-        schools.splice(i, 1); delete rows[deleteId];
-      }, `حذف مدرسة: ${s.name} (${s.code})`);
-      reloadData(res);
-      $('confirm-dialog').close();
-      toast('حُذفت المدرسة، ويمكن استرجاعها من سجل التعديلات');
+    confirmBox({
+      title: 'تأكيد الحذف', danger: true,
+      html: `<p>هل تريد حذف <b>${esc(s.name)}</b> (الرقم الوزاري <span dir="ltr">${esc(s.code)}</span>) من الدليل؟</p>`,
+      note: `تُحذف المدرسة لجميع المستخدمين، ويمكن استرجاعها لاحقًا من <a href="${HISTORY_URL}" target="_blank" rel="noopener">سجل التعديلات</a>.`,
+      onOk: async () => {
+        if (!(await ensureToken())) throw new Error('يلزم مفتاح الحفظ لإتمام العملية.');
+        const res = await commitChange((schools, rows) => {
+          const i = schools.findIndex(x => x.id === id);
+          if (i < 0) throw new Error('هذه المدرسة حُذفت من قبل. حدّث الصفحة.');
+          schools.splice(i, 1); delete rows[id];
+        }, `حذف مدرسة: ${s.name} (${s.code})`);
+        reloadData(res);
+        toast('حُذفت المدرسة، ويمكن استرجاعها من سجل التعديلات');
+      }
     });
-    if (!ok && !getToken()) openTokenDialog();
-  });
+  }
   $('add-school').addEventListener('click', () => openEditor(null));
   $('details-edit').addEventListener('click', () => openEditor(detailsId));
   $('details-del').addEventListener('click', () => askDelete(detailsId));

@@ -10,7 +10,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23071d35'/%3E%3Cpath d='M20 9l11 6v2H9v-2zM11 19h3v9h-3zm7.5 0h3v9h-3zm7.5 0h3v9h-3zM9 30h22v2H9z' fill='%23d6b878'/%3E%3C/svg%3E">
 <link rel="preload" href="fonts/plex-arabic-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/plex-arabic-700.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=244d04e0">
+<link rel="stylesheet" href="style.css?v=33285e26">
 </head>
 <body>
 <div class="page">
@@ -173,12 +173,12 @@
 </dialog>
 
 <dialog id="confirm-dialog" aria-labelledby="confirm-title">
-  <div class="dlg-head"><h3 id="confirm-title">حذف مدرسة</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
+  <div class="dlg-head"><h3 id="confirm-title">تأكيد</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
   <div class="dlg-body">
-    <p id="confirm-text" class="confirm-text"></p>
-    <p class="note">تُحذف المدرسة من الدليل لجميع المستخدمين. ويمكن استرجاعها لاحقًا من <a class="history-link" target="_blank" rel="noopener">سجل التعديلات</a>.</p>
+    <div id="confirm-text" class="confirm-text"></div>
+    <p class="note" id="confirm-note" hidden></p>
     <p class="err" id="confirm-error" role="alert"></p>
-    <div class="dlg-tools"><button class="btn danger" type="button" id="confirm-go">حذف المدرسة</button><button class="btn" type="button" data-close>إلغاء</button></div>
+    <div class="dlg-tools"><button class="btn primary" type="button" id="confirm-go">موافق</button><button class="btn" type="button" data-close id="confirm-cancel">إلغاء</button></div>
   </div>
 </dialog>
 
@@ -219,6 +219,6 @@
 <script src="data.js?v=78aed8b5"></script>
 <script src="secure.js?v=9aa04cf8"></script>
 <script src="search.js?v=a7528e3c"></script>
-<script src="app.js?v=9427eeca"></script>
+<script src="app.js?v=7476c018"></script>
 </body>
 </html>
