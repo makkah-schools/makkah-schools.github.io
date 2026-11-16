@@ -150,6 +150,7 @@
       + (s.email ? `<a href="mailto:${esc(s.email)}">${ICON_MAIL}بريد</a>` : '');
     return `<div class="contact"><div class="contact-title">${ICON_LOCK}بيانات الإدارة</div><dl class="details">${rows}</dl>${links ? `<div class="links">${links}</div>` : ''}</div>`;
   }
+  const ICON_EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
   const ICON_LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 018 0"/></svg>';
   function card(s) {
     const h = hits.get(s.id);
@@ -172,7 +173,7 @@ ${why}
 <div class="detail"><dt>مكتب التعليم</dt><dd>${dd(s.office)}</dd></div>
 <div class="detail"><dt>السلطة</dt><dd>${dd(s.authority)}</dd></div>
 <div class="detail wide"><dt>${managerTitle(s)}</dt><dd>${dd(s.manager)}</dd></div>
-</dl>${contactBlock(s)}${g}</article>`;
+</dl>${contactBlock(s)}${g}<button type="button" class="view-all" data-view="${s.id}">${ICON_EYE}عرض جميع البيانات</button></article>`;
   }
 
   function render() {
@@ -288,6 +289,8 @@ ${why}
   $('results').addEventListener('click', e => {
     const c = e.target.closest('[data-copy]');
     if (c) { copyText(c.dataset.copy).then(() => toast('نُسخ الرقم الوزاري ' + c.dataset.copy)); return; }
+    const v = e.target.closest('[data-view]');
+    if (v) { openDetails(+v.dataset.view); return; }
     const g = e.target.closest('[data-group]');
     if (g) { state.group = +g.dataset.group; update(); $('results-card').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   });
@@ -468,6 +471,53 @@ ${why}
     finally { btn.disabled = false; }
   });
 
+  /* ---------- all data of one school, every column of the Excel sheet ---------- */
+  let detailsId = null, pendingDetails = null;
+  function detailRows(s) {
+    const pub = META.cols || [], sec = META.secretCols || [], order = META.order || pub;
+    const out = [];
+    for (const h of order) {
+      const pi = pub.indexOf(h);
+      if (pi >= 0) { out.push({ h, v: (s.raw || [])[pi] || '' }); continue; }
+      const si = sec.indexOf(h);
+      if (si >= 0) out.push(admin ? { h, v: (s.rawSecret || [])[si] || '', sec: true } : { h, locked: true });
+    }
+    return out;
+  }
+  function valueHtml(h, v) {
+    if (!v) return '<span class="none">فارغ في الملف</span>';
+    if (/جوال|الهاتف/.test(h)) { const l = localPhone(v); return `<a class="ltr" href="tel:${l}">${esc(l)}</a>`; }
+    if (/البريد/.test(h)) return `<a href="mailto:${esc(v)}">${esc(v)}</a>`;
+    if (/هوية|الرقم الوزاري/.test(h)) return `<span class="ltr">${esc(v)}</span>`;
+    return esc(v);
+  }
+  function openDetails(id) {
+    const s = byId.get(id); if (!s) return;
+    detailsId = id;
+    $('details-title').textContent = s.name;
+    $('details-sub').textContent = `جميع أعمدة ملف Excel كما وردت فيه · ${META.title || ''}`;
+    const rows = detailRows(s);
+    const locked = rows.some(r => r.locked);
+    let html = rows.map(r => r.locked
+      ? `<tr class="locked"><th>${esc(r.h)}</th><td>${ICON_LOCK.replace('<svg', '<svg width="14" height="14"')} تظهر بعد دخول الإدارة</td></tr>`
+      : `<tr class="${r.sec ? 'sec' : ''}"><th>${esc(r.h)}</th><td>${valueHtml(r.h, r.v)}</td></tr>`).join('');
+    html += `<tr class="group"><td colspan="2">إضافات الدليل (ليست في ملف Excel)</td></tr>`
+      + `<tr class="extra"><th>القطاع / المحافظة</th><td>${esc(areaLabel(s))}</td></tr>`
+      + (s.group ? `<tr class="extra"><th>مدارس المدير نفسه</th><td>${schoolsN(groupSize.get(s.group))}</td></tr>` : '');
+    $('details-table').innerHTML = html;
+    $('details-login').hidden = !locked || !canCrypto();
+    if (!$('details-dialog').open) $('details-dialog').showModal();
+  }
+  $('details-copy').addEventListener('click', () => {
+    const s = byId.get(detailsId); if (!s) return;
+    const text = [s.name, ...detailRows(s).filter(r => !r.locked).map(r => `${r.h}: ${/جوال|الهاتف/.test(r.h) ? localPhone(r.v) : (r.v || '—')}`), `القطاع / المحافظة: ${areaLabel(s)}`].join('\n');
+    copyText(text).then(() => toast('نُسخت بيانات المدرسة'));
+  });
+  $('details-login').addEventListener('click', () => {
+    pendingDetails = detailsId; $('details-dialog').close();
+    $('login-error').textContent = ''; $('pw').value = ''; $('login-dialog').showModal(); $('pw').focus();
+  });
+
   /* ---------- admin login (personal data is AES-GCM encrypted in secure.js) ---------- */
   const KEY_NAME = 'makkah-schools-admin-key';
   const b64d = v => Uint8Array.from(atob(v), c => c.charCodeAt(0));
@@ -530,6 +580,7 @@ ${why}
       await storeKey(key, $('remember').checked);
       $('login-dialog').close(); applySecret(rows);
       toast('تم الدخول: تظهر الآن بيانات المديرين في كل بطاقة');
+      if (pendingDetails !== null) { openDetails(pendingDetails); pendingDetails = null; }
     } catch (err) { $('login-error').textContent = 'كلمة المرور غير صحيحة.'; $('pw').select(); }
     finally { go.disabled = false; go.textContent = 'دخول'; }
   });

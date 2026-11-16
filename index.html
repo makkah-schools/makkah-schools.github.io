@@ -107,6 +107,19 @@
   </div>
 </dialog>
 
+<dialog id="details-dialog" aria-labelledby="details-title">
+  <div class="dlg-head"><h3 id="details-title">بيانات المدرسة</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
+  <div class="dlg-body">
+    <p class="note" id="details-sub"></p>
+    <table class="all-data" id="details-table"></table>
+    <div class="dlg-tools details-tools">
+      <button class="btn primary" type="button" id="details-copy">نسخ البيانات</button>
+      <button class="btn" type="button" id="details-login" hidden>دخول الإدارة لعرض البيانات المقفلة</button>
+      <button class="btn" type="button" data-close>إغلاق</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="login-dialog" aria-labelledby="login-title">
   <div class="dlg-head"><h3 id="login-title">دخول الإدارة</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
   <form class="dlg-body login" id="login-form" autocomplete="on">

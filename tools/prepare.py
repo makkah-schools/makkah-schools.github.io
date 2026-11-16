@@ -41,6 +41,16 @@ col = {h: i for i, h in enumerate(hdr) if h}
 title = next((str(c) for r in rows[:hdr_i] for c in r if c), '')
 recs = [r for r in rows[hdr_i + 1:] if r and r[col['الرقم الوزاري']]]
 
+# every column of the sheet, in its original order; personal columns go only to the encrypted file
+SENSITIVE = {'هوية مدير المدرسة', 'البريد الإلكتروني لمدير المدرسة', 'جوال مدير المدرسة', 'المكلفة', 'الهاتف'}
+ORDER = [h for h in hdr if h]
+PUBLIC_COLS = [h for h in ORDER if h not in SENSITIVE]
+SECRET_COLS = [h for h in ORDER if h in SENSITIVE]
+def cell(v):
+    if v is None: return ''
+    if isinstance(v, float) and v.is_integer(): v = int(v)
+    return str(v).strip()
+
 STAGE = {'ابتدائ': 'المرحلة الابتدائية', 'متوسط': 'المرحلة المتوسطة', 'ثانوي': 'المرحلة الثانوية'}
 def stage(v):
     for k, s in STAGE.items():
@@ -95,6 +105,8 @@ for i, r in enumerate(recs):
     secret = {'identity': s['_mid'], 'phone': opt('جوال مدير المدرسة'), 'email': opt('البريد الإلكتروني لمدير المدرسة'),
               'assigned': opt('المكلفة'), 'assignedPhone': opt('الهاتف')}
     secrets_by_id[i] = {k: v for k, v in secret.items() if v}
+    secrets_by_id[i]['rawSecret'] = [cell(r[col[h]]) for h in SECRET_COLS]
+    s['raw'] = [cell(r[col[h]]) for h in PUBLIC_COLS]
     sec = by_rev.get(code, '')
     if sec: via['guide-number'] += 1
     else:
@@ -145,7 +157,8 @@ m = re.search(r'(\d{4})-(\d{1,2})-(\d{1,2})', xlsx)
 HM = ['محرم', 'صفر', 'ربيع الأول', 'ربيع الآخر', 'جمادى الأولى', 'جمادى الآخرة', 'رجب', 'شعبان', 'رمضان', 'شوال', 'ذو القعدة', 'ذو الحجة']
 date = f'{int(m.group(3))} {HM[int(m.group(2)) - 1]} {m.group(1)}هـ' if m else ''
 build = secrets.token_hex(6)
-meta = {'title': title, 'date': date, 'count': len(out_rows), 'build': build}
+meta = {'title': title, 'date': date, 'count': len(out_rows), 'build': build,
+        'order': ORDER, 'cols': PUBLIC_COLS, 'secretCols': SECRET_COLS}
 with open(out, 'w', encoding='utf-8') as f:
     f.write('window.SCHOOL_META=' + json.dumps(meta, ensure_ascii=False) + ';\n')
     f.write('window.SCHOOLS=' + json.dumps(out_rows, ensure_ascii=False, separators=(',', ':')) + ';\n')
