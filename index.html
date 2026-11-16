@@ -10,7 +10,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23071d35'/%3E%3Cpath d='M20 9l11 6v2H9v-2zM11 19h3v9h-3zm7.5 0h3v9h-3zm7.5 0h3v9h-3zM9 30h22v2H9z' fill='%23d6b878'/%3E%3C/svg%3E">
 <link rel="preload" href="fonts/plex-arabic-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/plex-arabic-700.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=dac81c57">
+<link rel="stylesheet" href="style.css?v=244d04e0">
 </head>
 <body>
 <div class="page">
@@ -66,6 +66,7 @@
     <div class="results-bar">
       <p class="count" id="count" aria-live="polite">جارٍ تحميل البيانات…</p>
       <div class="actions">
+        <button class="btn add-btn" id="add-school" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>إضافة مدرسة</button>
         <button class="btn charts-btn" id="open-charts" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-9-9v9z"/><path d="M15 3.5A9 9 0 0120.5 9H15z"/></svg>رسوم بيانية</button>
         <button class="btn primary" id="open-report" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>التقارير</button>
         <button class="btn" id="open-export" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4 17v3h16v-3"/></svg>تصدير Excel</button>
@@ -148,9 +149,56 @@
       <button class="btn primary" type="button" id="details-pdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M12 12v6m0 0l-2.5-2.5M12 18l2.5-2.5"/></svg>حفظ PDF</button>
       <button class="btn" type="button" id="details-copy">نسخ البيانات</button>
       <button class="btn" type="button" id="details-login" hidden>دخول الإدارة لعرض البيانات المقفلة</button>
+      <button class="btn" type="button" id="details-edit" hidden>تعديل</button>
+      <button class="btn danger" type="button" id="details-del" hidden>حذف</button>
       <button class="btn" type="button" data-close>إغلاق</button>
     </div>
   </div>
+</dialog>
+
+<dialog id="edit-dialog" aria-labelledby="edit-title">
+  <div class="dlg-head"><h3 id="edit-title">تعديل بيانات مدرسة</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
+  <form class="dlg-body edit-form" id="edit-form" novalidate>
+    <div id="edit-fields"></div>
+    <p class="note">الحقول التي عليها <span class="req">*</span> مطلوبة. يُحفظ التغيير على الموقع ويظهر لجميع المستخدمين خلال دقائق، ويبقى في سجل التعديلات.</p>
+    <p class="err" id="edit-error" role="alert"></p>
+    <div class="dlg-tools details-tools">
+      <button class="btn primary" type="submit" id="edit-save">حفظ</button>
+      <button class="btn" type="button" data-close>إلغاء</button>
+      <span class="spacer"></span>
+      <a class="history-link" target="_blank" rel="noopener">سجل التعديلات</a>
+      <button class="linkbtn" type="button" id="open-token">مفتاح الحفظ</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="confirm-dialog" aria-labelledby="confirm-title">
+  <div class="dlg-head"><h3 id="confirm-title">حذف مدرسة</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
+  <div class="dlg-body">
+    <p id="confirm-text" class="confirm-text"></p>
+    <p class="note">تُحذف المدرسة من الدليل لجميع المستخدمين. ويمكن استرجاعها لاحقًا من <a class="history-link" target="_blank" rel="noopener">سجل التعديلات</a>.</p>
+    <p class="err" id="confirm-error" role="alert"></p>
+    <div class="dlg-tools"><button class="btn danger" type="button" id="confirm-go">حذف المدرسة</button><button class="btn" type="button" data-close>إلغاء</button></div>
+  </div>
+</dialog>
+
+<dialog id="token-dialog" aria-labelledby="token-title">
+  <div class="dlg-head"><h3 id="token-title">مفتاح الحفظ على الموقع</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
+  <form class="dlg-body token" id="token-form" autocomplete="off">
+    <p class="note">ليحفظ الموقع الإضافة والتعديل والحذف يحتاج مفتاحًا من GitHub خاصًا بمستودع الموقع. يُنشأ مرة واحدة، ويُحفظ على هذا الجهاز فقط.</p>
+    <ol class="steps">
+      <li>افتح <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">صفحة إنشاء مفتاح في GitHub</a> وأنت داخل بحساب مالك المنظمة.</li>
+      <li>اكتب اسمًا مثل «دليل المدارس»، واختر مدة الصلاحية.</li>
+      <li>في <b>Resource owner</b> اختر <b dir="ltr">makkah-schools</b>.</li>
+      <li>في <b>Repository access</b> اختر <b>Only select repositories</b> ثم <b dir="ltr">makkah-schools.github.io</b>.</li>
+      <li>في <b>Permissions</b> افتح <b>Repository permissions</b> واجعل <b>Contents</b> على <b>Read and write</b>.</li>
+      <li>اضغط <b>Generate token</b> وانسخ المفتاح والصقه هنا.</li>
+    </ol>
+    <p class="note" id="token-state"></p>
+    <div class="field"><label for="gh-token">مفتاح GitHub</label><input id="gh-token" type="password" dir="ltr" spellcheck="false" placeholder="github_pat_…" required></div>
+    <p class="err" id="token-error" role="alert"></p>
+    <div class="dlg-tools"><button class="btn primary" type="submit" id="token-save">حفظ المفتاح</button><button class="btn" type="button" data-close>إلغاء</button><button class="btn danger" type="button" id="token-clear" hidden>حذف المفتاح من هذا الجهاز</button></div>
+  </form>
 </dialog>
 
 <dialog id="login-dialog" aria-labelledby="login-title">
@@ -171,6 +219,6 @@
 <script src="data.js?v=78aed8b5"></script>
 <script src="secure.js?v=9aa04cf8"></script>
 <script src="search.js?v=a7528e3c"></script>
-<script src="app.js?v=6cc8de91"></script>
+<script src="app.js?v=9427eeca"></script>
 </body>
 </html>

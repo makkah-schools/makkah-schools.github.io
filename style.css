@@ -280,6 +280,40 @@ dialog.full{width:calc(100vw - 24px);max-width:1240px;height:calc(100vh - 24px);
   .seg{width:100%}.seg button{flex:1}
 }
 
+/* editing */
+.add-btn{background:var(--green);border-color:var(--green);color:#fff}
+.add-btn:hover{background:#276a4f;border-color:#276a4f}
+.add-btn[hidden]{display:none}
+.btn.danger{background:#fff;border-color:#e3b3b3;color:#a3302f}
+.btn.danger:hover{background:#fbeeee;border-color:#cf8a8a}
+#confirm-go.btn.danger{background:#b3261e;border-color:#b3261e;color:#fff}
+#confirm-go.btn.danger:hover{background:#8f1d17}
+.btn[hidden]{display:none}
+.edit-row{display:flex;gap:8px}
+.ebtn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:38px;border-radius:11px;border:1px solid var(--line);background:#fff;color:var(--navy);font-weight:700;font-size:14px}
+.ebtn svg{width:16px;height:16px}
+.ebtn:hover{background:var(--steel-soft);border-color:#a9bfd3}
+.ebtn.del{color:#a3302f;border-color:#efd0d0}
+.ebtn.del:hover{background:#fbeeee;border-color:#cf8a8a}
+#edit-dialog{width:min(860px,calc(100% - 24px))}
+#confirm-dialog,#token-dialog{width:min(560px,calc(100% - 24px))}
+.ef-sec{margin:4px 0 10px;font-size:15px;color:var(--navy);border-bottom:1px solid var(--line);padding-bottom:6px}
+.ef-sec:not(:first-child){margin-top:20px}
+.ef-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.ef.wide{grid-column:1/-1}
+.ef label{display:block;font-size:13px;color:var(--muted);margin:0 2px 5px;font-weight:600}
+.ef input,.ef select,.token input{width:100%;height:46px;border-radius:12px;border:1px solid #d3dde5;background:#fff;padding:0 12px;font-size:15px;color:var(--ink)}
+.ef input:focus,.ef select:focus,.token input:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(23,63,103,.14)}
+.req{color:#b3261e}
+.spacer{flex:1}
+.history-link{color:var(--navy);font-weight:600;font-size:14px}
+.linkbtn{border:0;background:none;color:var(--navy);font-weight:600;font-size:14px;text-decoration:underline;text-underline-offset:3px;padding:0}
+.confirm-text{font-size:16px;line-height:1.9;margin:0 0 6px}
+.steps{margin:6px 0 10px;padding-inline-start:22px;line-height:1.9;font-size:14px;color:var(--ink)}
+.steps a{color:var(--navy);font-weight:700}
+.token .field label{display:block;font-size:14px;color:var(--navy-deep);font-weight:600;margin-bottom:6px}
+@media (max-width:620px){.ef-grid{grid-template-columns:1fr}.spacer{display:none}}
+
 /* report */
 .report h2{margin:0 0 4px;font-size:22px;color:var(--navy-deep)}
 .report .meta{color:var(--muted);font-size:13.5px;line-height:1.9;margin-bottom:14px}

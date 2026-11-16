@@ -2,8 +2,8 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const DATA = window.SCHOOLS || [];
-  const SECURE = window.SCHOOL_SECURE && window.SCHOOL_SECURE.build === (window.SCHOOL_META || {}).build ? window.SCHOOL_SECURE : null;
-  let admin = false;
+  let SECURE = window.SCHOOL_SECURE && window.SCHOOL_SECURE.build === (window.SCHOOL_META || {}).build ? window.SCHOOL_SECURE : null;
+  let admin = false, adminKey = null;
   const META = window.SCHOOL_META || {};
   const byId = new Map(DATA.map(s => [s.id, s]));
   const PAGE = 24;
@@ -87,15 +87,15 @@
 
   /* ---------- stats ---------- */
   const STAT_DEFS = [
-    { label: 'إجمالي المدارس', cls: 'total', n: DATA.length, apply: () => resetAll(), on: () => !hasFilters() && !state.q && !state.group },
-    { label: 'مدارس البنين', n: DATA.filter(s => s.gender === 'بنين').length, key: 'gender', val: 'بنين' },
-    { label: 'مدارس البنات', n: DATA.filter(s => s.gender === 'بنات').length, key: 'gender', val: 'بنات' },
-    ...STAGES.map(st => ({ label: STAGE_SHORT[st], n: DATA.filter(s => s.stage === st).length, key: 'stage', val: st }))
+    { label: 'إجمالي المدارس', cls: 'total', n: () => DATA.length, apply: () => resetAll(), on: () => !hasFilters() && !state.q && !state.group },
+    { label: 'مدارس البنين', n: () => DATA.filter(s => s.gender === 'بنين').length, key: 'gender', val: 'بنين' },
+    { label: 'مدارس البنات', n: () => DATA.filter(s => s.gender === 'بنات').length, key: 'gender', val: 'بنات' },
+    ...STAGES.map(st => ({ label: STAGE_SHORT[st], n: () => DATA.filter(s => s.stage === st).length, key: 'stage', val: st }))
   ];
   function renderStats() {
     $('stats').innerHTML = STAT_DEFS.map((d, i) => {
       const on = d.on ? d.on() : state[d.key] === d.val;
-      return `<button type="button" class="stat ${d.cls || ''}" data-stat="${i}" aria-pressed="${on}"><b>${fmt(d.n)}</b><span>${esc(d.label)}</span></button>`;
+      return `<button type="button" class="stat ${d.cls || ''}" data-stat="${i}" aria-pressed="${on}"><b>${fmt(d.n())}</b><span>${esc(d.label)}</span></button>`;
     }).join('');
   }
   $('stats').addEventListener('click', e => {
@@ -150,6 +150,8 @@
       + (s.email ? `<a href="mailto:${esc(s.email)}">${ICON_MAIL}بريد</a>` : '');
     return `<div class="contact"><div class="contact-title">${ICON_LOCK}بيانات الإدارة</div><dl class="details">${rows}</dl>${links ? `<div class="links">${links}</div>` : ''}</div>`;
   }
+  const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>';
+  const ICON_DEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>';
   const ICON_EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
   const ICON_LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 018 0"/></svg>';
   function card(s) {
@@ -173,7 +175,7 @@ ${why}
 <div class="detail"><dt>مكتب التعليم</dt><dd>${dd(s.office)}</dd></div>
 <div class="detail"><dt>السلطة</dt><dd>${dd(s.authority)}</dd></div>
 <div class="detail wide"><dt>${managerTitle(s)}</dt><dd>${dd(s.manager)}</dd></div>
-</dl>${contactBlock(s)}${g}<button type="button" class="view-all" data-view="${s.id}">${ICON_EYE}عرض جميع البيانات</button></article>`;
+</dl>${contactBlock(s)}${g}<button type="button" class="view-all" data-view="${s.id}">${ICON_EYE}عرض جميع البيانات</button>${admin ? `<div class="edit-row"><button type="button" class="ebtn" data-edit="${s.id}">${ICON_EDIT}تعديل</button><button type="button" class="ebtn del" data-del="${s.id}">${ICON_DEL}حذف</button></div>` : ''}</article>`;
   }
 
   function render() {
@@ -291,6 +293,10 @@ ${why}
     if (c) { copyText(c.dataset.copy).then(() => toast('نُسخ الرقم الوزاري ' + c.dataset.copy)); return; }
     const v = e.target.closest('[data-view]');
     if (v) { openDetails(+v.dataset.view); return; }
+    const ed = e.target.closest('[data-edit]');
+    if (ed) { openEditor(+ed.dataset.edit); return; }
+    const dl = e.target.closest('[data-del]');
+    if (dl) { askDelete(+dl.dataset.del); return; }
     const g = e.target.closest('[data-group]');
     if (g) { state.group = +g.dataset.group; update(); $('results-card').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   });
@@ -516,6 +522,7 @@ ${why}
       + (s.group ? `<tr class="extra"><th>مدارس المدير نفسه</th><td>${schoolsN(groupSize.get(s.group))}</td></tr>` : '');
     $('details-table').innerHTML = html;
     $('details-login').hidden = !locked || !canCrypto();
+    $('details-edit').hidden = $('details-del').hidden = !admin;
     if (!$('details-dialog').open) $('details-dialog').showModal();
   }
   /* printable card: header, all data, director and signature */
@@ -619,7 +626,7 @@ ${why}
   const canCrypto = () => !!(SECURE && window.crypto && crypto.subtle);
   async function deriveKey(pw) {
     const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
-    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64d(SECURE.salt), iterations: SECURE.iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64d(SECURE.salt), iterations: SECURE.iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
   }
   async function decryptWith(key) {
     const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(SECURE.iv) }, key, b64d(SECURE.ct));
@@ -645,9 +652,8 @@ ${why}
     if (!val) return;
     try {
       const o = JSON.parse(val);
-      if (o.build !== SECURE.build) throw new Error('old');
-      const key = await crypto.subtle.importKey('raw', b64d(o.k), { name: 'AES-GCM' }, false, ['decrypt']);
-      applySecret(await decryptWith(key));
+      const key = await crypto.subtle.importKey('raw', b64d(o.k), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+      applySecret(await decryptWith(key)); adminKey = key;
     } catch (e) { clearKey(); }
   }
   function adminUI() {
@@ -655,6 +661,7 @@ ${why}
     b.hidden = !canCrypto();
     b.classList.toggle('on', admin);
     $('admin-label').textContent = admin ? 'الإدارة · خروج' : 'دخول الإدارة';
+    $('add-school').hidden = !admin;
     b.setAttribute('aria-label', admin ? 'الخروج من وضع الإدارة' : 'دخول الإدارة لعرض بيانات المديرين');
     $('export-note').textContent = admin
       ? 'يحتوي الملف على ورقة المدارس بكل بياناتها، ومنها هوية المدير وجواله وبريده، وورقة للإحصاءات. احفظه في مكان آمن.'
@@ -672,12 +679,328 @@ ${why}
       const key = await deriveKey(pw);
       const rows = await decryptWith(key);
       await storeKey(key, $('remember').checked);
+      adminKey = key;
       $('login-dialog').close(); applySecret(rows);
       toast('تم الدخول: تظهر الآن بيانات المديرين في كل بطاقة');
       if (pendingDetails !== null) { openDetails(pendingDetails); pendingDetails = null; }
     } catch (err) { $('login-error').textContent = 'كلمة المرور غير صحيحة.'; $('pw').select(); }
     finally { go.disabled = false; go.textContent = 'دخول'; }
   });
+
+  /* ---------- editing: add / edit / delete schools, saved as a commit to the site's GitHub repository ---------- */
+  const REPO = { owner: 'makkah-schools', repo: 'makkah-schools.github.io', branch: 'main' };
+  const TOKEN_NAME = 'makkah-schools-gh-token';
+  const HISTORY_URL = `https://github.com/${REPO.owner}/${REPO.repo}/commits/${REPO.branch}/data.js`;
+  const getToken = () => { try { return localStorage.getItem(TOKEN_NAME) || ''; } catch (e) { return ''; } };
+  const setToken = t => { try { t ? localStorage.setItem(TOKEN_NAME, t) : localStorage.removeItem(TOKEN_NAME); } catch (e) { /* ignore */ } };
+
+  // same normalisation as tools/prepare.py, so edited rows look like imported ones
+  const nAr = x => String(x || '').replace(/[ً-ٰٟـ]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
+    .replace(/[^ء-ي0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  function cleanText(x) {
+    x = String(x || '').replace(/ـ/g, '').replace(/[A-Za-z]/g, '').replace(/[_.]+/g, ' ')
+      .replace(/\s*[-–—]+\s*/g, ' - ').replace(/\s*\/\s*/g, ' / ').replace(/\s+/g, ' ').trim().replace(/^[ \-\/،,]+|[ \-\/،,]+$/g, '');
+    x = x.replace(/^مدينة\s+/, '').replace(/مك[ةه]\s*ال\s*مكرم[ةه]|مك[ةه]المكرم[ةه]|مك[ةه] المكرم[ةه]/g, 'مكة المكرمة')
+      .replace(/^مك[ةه](?=$| )(?! المكرمة)/, 'مكة المكرمة').replace('االليث', 'الليث').replace('الفنفذة', 'القنفذة');
+    return x === 'اظم' ? 'أضم' : x;
+  }
+  function stageOf(v) {
+    const t = nAr(v);
+    if (t.includes('ابتدائ')) return 'المرحلة الابتدائية';
+    if (t.includes('متوسط')) return 'المرحلة المتوسطة';
+    if (t.includes('ثانوي')) return 'المرحلة الثانوية';
+    return cleanText(v);
+  }
+  function typeOf(v) {
+    const t = nAr(v);
+    if (t.includes('تحفيظ')) return 'تحفيظ القرآن الكريم';
+    if (t.includes('تربيه خاص')) return 'تربية خاصة';
+    if (t.includes('الكبار')) return 'تعليم الكبار';
+    if (t.includes('جامع')) return 'معاهد الجامعة الإسلامية';
+    if (t.includes('تعليم عام')) return 'تعليم عام';
+    return cleanText(v);
+  }
+  function officeOf(v) {
+    const t = nAr(v);
+    if (t.includes('اعاق')) return 'ذوي الإعاقة';
+    if (t.includes('موهوب')) return 'الموهوبين';
+    return stageOf(v);
+  }
+  const phoneStore = v => { const d = digits(v); if (!d) return ''; const l = localPhone(d); return '966' + l.slice(1); };
+
+  const FIELD_KIND = {
+    'م': { type: 'number' }, 'الرقم الوزاري': { req: true, ltr: true }, 'اسم المدرسة': { req: true, wide: true },
+    'المرحلة': { req: true, select: true }, 'جنس المدرسة': { req: true, select: true },
+    'هوية مدير المدرسة': { ltr: true, sec: true, inputmode: 'numeric' }, 'جوال مدير المدرسة': { ltr: true, sec: true, inputmode: 'tel' },
+    'البريد الإلكتروني لمدير المدرسة': { ltr: true, sec: true, type: 'email', wide: true }, 'اسم مدير المدرسة': { wide: true, sec: true },
+    'المكلفة': { sec: true }, 'الهاتف': { ltr: true, sec: true, inputmode: 'tel' }
+  };
+  const isMgrCol = h => (META.secretCols || []).includes(h) || h === 'اسم مدير المدرسة';
+  function distinctRaw(h) {
+    const i = (META.cols || []).indexOf(h); if (i < 0) return [];
+    return [...count(DATA, s => (s.raw || [])[i] || '')].filter(([v]) => v).sort((a, b) => b[1] - a[1]).map(([v]) => v);
+  }
+  function areaOptions(sel) {
+    const opt = (v, l) => `<option value="${esc(v)}"${v === sel ? ' selected' : ''}>${esc(l)}</option>`;
+    return `<optgroup label="مكة المكرمة">${SECTORS.map(x => opt('sector:' + x, x)).join('')}${opt('gov:مكة المكرمة', 'مكة المكرمة (قطاع غير محدد)')}</optgroup>`
+      + `<optgroup label="المحافظات">${GOV_ORDER.slice(1).map(g => opt('gov:' + g, g)).join('')}</optgroup>`;
+  }
+  let editId = null;
+  function fieldHtml(h, value) {
+    const k = FIELD_KIND[h] || {}, id = 'ef-' + (META.order || []).indexOf(h);
+    const attrs = `id="${id}" name="${esc(h)}"${k.req ? ' required' : ''}${k.ltr ? ' dir="ltr"' : ''}${k.inputmode ? ` inputmode="${k.inputmode}"` : ''}`;
+    let input;
+    if (k.select) {
+      const vals = distinctRaw(h); if (value && !vals.includes(value)) vals.unshift(value);
+      input = `<select ${attrs}><option value="">اختر…</option>${vals.map(v => `<option${v === value ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select>`;
+    } else {
+      const list = ['المدينة/القرية', 'المنطقة الإدارية', 'السلطة', 'مكتب التعليم', 'نوع التعليم'].includes(h) ? `dl-${id}` : '';
+      input = `<input ${attrs} type="${k.type || 'text'}" value="${esc(value)}" autocomplete="off"${list ? ` list="${list}"` : ''}>`
+        + (list ? `<datalist id="${list}">${distinctRaw(h).slice(0, 300).map(v => `<option value="${esc(v)}">`).join('')}</datalist>` : '');
+    }
+    return `<div class="ef${k.wide ? ' wide' : ''}"><label for="${id}">${esc(h)}${k.req ? ' <span class="req">*</span>' : ''}</label>${input}</div>`;
+  }
+  async function ensureToken() {
+    if (getToken()) return true;
+    return new Promise(res => { tokenResolve = res; openTokenDialog(); });
+  }
+  async function openEditor(id) {
+    if (!admin || !adminKey) { toast('ادخل بوضع الإدارة أولًا'); return; }
+    if (!(await ensureToken())) return;
+    editId = id;
+    const s = id === null ? null : byId.get(id);
+    const val = h => {
+      if (!s) return h === 'المنطقة الإدارية' ? 'مكة المكرمة' : h === 'السلطة' ? 'حكومي' : '';
+      const pi = (META.cols || []).indexOf(h); if (pi >= 0) return (s.raw || [])[pi] || '';
+      const si = (META.secretCols || []).indexOf(h); return si >= 0 ? (s.rawSecret || [])[si] || '' : '';
+    };
+    const PREF = ['الرقم الوزاري', 'اسم المدرسة', 'المرحلة', 'جنس المدرسة', 'نوع التعليم', 'مكتب التعليم', 'المدينة/القرية', 'المنطقة الإدارية', 'السلطة',
+      'اسم مدير المدرسة', 'هوية مدير المدرسة', 'جوال مدير المدرسة', 'البريد الإلكتروني لمدير المدرسة', 'المكلفة', 'الهاتف'];
+    const all = (META.order || []).filter(h => h !== 'م');
+    const order = PREF.filter(h => all.includes(h)).concat(all.filter(h => !PREF.includes(h)));
+    const schoolF = order.filter(h => !isMgrCol(h)), mgrF = order.filter(isMgrCol);
+    const area = s ? (s.sector ? 'sector:' + s.sector : 'gov:' + s.gov) : 'gov:غير محدد';
+    $('edit-title').textContent = s ? `تعديل: ${s.name}` : 'إضافة مدرسة جديدة';
+    const areaField = `<div class="ef"><label for="ef-area">القطاع / المحافظة <span class="req">*</span></label><select id="ef-area" name="__area">${areaOptions(area)}</select></div>`;
+    const at = Math.max(schoolF.indexOf('مكتب التعليم'), 0) + 1;
+    const schoolHtml = schoolF.map(h => fieldHtml(h, val(h)));
+    schoolHtml.splice(at, 0, areaField);
+    $('edit-fields').innerHTML = `<h4 class="ef-sec">بيانات المدرسة</h4><div class="ef-grid">${schoolHtml.join('')}</div>`
+      + `<h4 class="ef-sec">بيانات المدير أو المديرة</h4><div class="ef-grid">${mgrF.map(h => fieldHtml(h, val(h))).join('')}</div>`;
+    $('edit-error').textContent = '';
+    $('edit-save').textContent = s ? 'حفظ التعديل' : 'إضافة المدرسة';
+    if ($('details-dialog').open) $('details-dialog').close();
+    $('edit-dialog').showModal();
+    const first = $('edit-fields').querySelector('input,select'); if (first) first.focus();
+  }
+  function readForm() {
+    const vals = {}, errs = [];
+    $('edit-fields').querySelectorAll('[name]').forEach(el => { vals[el.name] = el.value.trim(); });
+    for (const [h, k] of Object.entries(FIELD_KIND)) if (k.req && (META.order || []).includes(h) && !vals[h]) errs.push(`«${h}» مطلوب`);
+    const idv = vals['هوية مدير المدرسة'];
+    if (idv && !/^\d{10}$/.test(digits(idv))) errs.push('رقم الهوية يجب أن يكون 10 أرقام');
+    for (const h of ['جوال مدير المدرسة', 'الهاتف']) { const v = vals[h]; if (v && !/^0?5\d{8}$/.test(localPhone(v))) errs.push(`«${h}» يجب أن يكون رقم جوال مثل 05xxxxxxxx`); }
+    const em = vals['البريد الإلكتروني لمدير المدرسة'];
+    if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) errs.push('البريد الإلكتروني غير صحيح');
+    return { vals, errs };
+  }
+  function buildRow(vals, id, prevRaw, prevSecRaw) {
+    const g = h => (vals[h] ?? '').trim();
+    if (vals['هوية مدير المدرسة']) vals['هوية مدير المدرسة'] = digits(vals['هوية مدير المدرسة']);
+    for (const h of ['جوال مدير المدرسة', 'الهاتف']) if (vals[h]) vals[h] = phoneStore(vals[h]);
+    const raw = (META.cols || []).map((h, i) => h in vals ? g(h) : (prevRaw || [])[i] || '');
+    const rawSecret = (META.secretCols || []).map((h, i) => h in vals ? g(h) : (prevSecRaw || [])[i] || '');
+    const [k, v] = (vals.__area || 'gov:غير محدد').split(':');
+    const row = {
+      id, code: g('الرقم الوزاري'), name: g('اسم المدرسة').replace(/\s+/g, ' '), stage: stageOf(g('المرحلة')), gender: g('جنس المدرسة'),
+      type: typeOf(g('نوع التعليم')), office: officeOf(g('مكتب التعليم')), town: cleanText(g('المدينة/القرية')),
+      authority: cleanText(g('السلطة')), region: cleanText(g('المنطقة الإدارية')), manager: g('اسم مدير المدرسة').replace(/\s+/g, ' '),
+      raw, gov: k === 'sector' ? 'مكة المكرمة' : v, sector: k === 'sector' ? v : ''
+    };
+    const sec = { identity: g('هوية مدير المدرسة'), phone: g('جوال مدير المدرسة'), email: g('البريد الإلكتروني لمدير المدرسة'), assigned: g('المكلفة'), assignedPhone: g('الهاتف') };
+    for (const x of Object.keys(sec)) if (!sec[x]) delete sec[x];
+    sec.rawSecret = rawSecret;
+    return { row, sec };
+  }
+  const sameCode = (a, b) => String(a).trim().toUpperCase() === String(b).trim().toUpperCase();
+
+  // ---- GitHub: read the current files, apply the change, write one commit with all three files ----
+  class GhError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
+  async function gh(path, opts = {}) {
+    const r = await fetch(`https://api.github.com/repos/${REPO.owner}/${REPO.repo}${path}`, {
+      method: opts.method || 'GET', body: opts.body ? JSON.stringify(opts.body) : undefined, cache: 'no-store',
+      headers: { Authorization: 'Bearer ' + getToken(), Accept: opts.raw ? 'application/vnd.github.raw' : 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(opts.body ? { 'Content-Type': 'application/json' } : {}) }
+    });
+    if (!r.ok) {
+      let m = ''; try { m = (await r.json()).message || ''; } catch (e) { /* ignore */ }
+      if (r.status === 401) throw new GhError(401, 'مفتاح GitHub غير صالح أو انتهت مدته. أدخل مفتاحًا جديدًا.');
+      if (r.status === 403 || r.status === 404) throw new GhError(r.status, 'مفتاح GitHub لا يملك صلاحية الكتابة على مستودع الموقع. تأكد من اختيار المستودع وصلاحية Contents: Read and write.');
+      throw new GhError(r.status, m || ('خطأ من GitHub: ' + r.status));
+    }
+    return opts.raw ? r.text() : r.json();
+  }
+  const pick = (txt, name) => { const m = txt.match(new RegExp('^window\\.' + name + '=(.*);\\s*$', 'm')); if (!m) throw new Error('ملف البيانات بصيغة غير متوقعة'); return JSON.parse(m[1]); };
+  async function sha8(text) { const h = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(text)); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 8); }
+  const randHex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, '0')).join('');
+  function regroup(schools, rows) {
+    const by = new Map();
+    for (const s of schools.slice().sort((a, b) => a.id - b.id)) { const idn = (rows[s.id] || {}).identity; if (idn) { if (!by.has(idn)) by.set(idn, []); by.get(idn).push(s.id); } }
+    const gid = new Map(); let n = 0;
+    for (const ids of [...by.values()].sort((a, b) => a[0] - b[0])) if (ids.length > 1) { n++; for (const i of ids) gid.set(i, n); }
+    for (const s of schools) { if (gid.has(s.id)) s.group = gid.get(s.id); else delete s.group; }
+  }
+  function todayHijri() {
+    try { return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()).replace(/\s*هـ$/, '') + 'هـ'; }
+    catch (e) { return META.date; }
+  }
+  async function commitChange(apply, message) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const ref = await gh(`/git/ref/heads/${REPO.branch}`), head = ref.object.sha;
+      const commit = await gh(`/git/commits/${head}`);
+      const q = `?ref=${head}`;
+      const [dataTxt, secTxt, idxTxt] = await Promise.all(['data.js', 'secure.js', 'index.html'].map(f => gh(`/contents/${f}${q}`, { raw: true })));
+      const meta = pick(dataTxt, 'SCHOOL_META'), schools = pick(dataTxt, 'SCHOOLS'), sec = pick(secTxt, 'SCHOOL_SECURE');
+      if (sec.salt !== SECURE.salt) throw new Error('تغيّرت كلمة مرور الإدارة على الموقع. حدّث الصفحة وادخل من جديد.');
+      let plain;
+      try { plain = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(sec.iv) }, adminKey, b64d(sec.ct)))); }
+      catch (e) { throw new Error('تعذّر فك البيانات المشفّرة على الموقع. حدّث الصفحة وادخل من جديد.'); }
+      const rows = plain.rows;
+      apply(schools, rows, meta);
+      regroup(schools, rows);
+      Object.assign(meta, { build: randHex(6), count: schools.length, date: todayHijri(), updated: new Date().toISOString() });
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, adminKey, new TextEncoder().encode(JSON.stringify({ build: meta.build, rows })));
+      const newSec = { v: 1, build: meta.build, iter: sec.iter, salt: sec.salt, iv: b64e(iv), ct: b64e(ct) };
+      const dataOut = 'window.SCHOOL_META=' + JSON.stringify(meta) + ';\nwindow.SCHOOLS=' + JSON.stringify(schools) + ';\n';
+      const secOut = 'window.SCHOOL_SECURE=' + JSON.stringify(newSec) + ';\n';
+      const idxOut = idxTxt.replace(/data\.js\?v=[0-9a-f]+/, 'data.js?v=' + await sha8(dataOut)).replace(/secure\.js\?v=[0-9a-f]+/, 'secure.js?v=' + await sha8(secOut));
+      const files = [['data.js', dataOut], ['secure.js', secOut], ['index.html', idxOut]];
+      const blobs = [];
+      for (const [, content] of files) blobs.push(await gh('/git/blobs', { method: 'POST', body: { content, encoding: 'utf-8' } }));
+      const tree = await gh('/git/trees', { method: 'POST', body: { base_tree: commit.tree.sha, tree: files.map(([path], i) => ({ path, mode: '100644', type: 'blob', sha: blobs[i].sha })) } });
+      const nc = await gh('/git/commits', { method: 'POST', body: { message, tree: tree.sha, parents: [head] } });
+      try { await gh(`/git/refs/heads/${REPO.branch}`, { method: 'PATCH', body: { sha: nc.sha, force: false } }); }
+      catch (e) { if (e.status === 422 && attempt < 2) continue; throw e; } // someone saved meanwhile: redo on top of it
+      return { meta, schools, rows, newSec };
+    }
+    throw new Error('تعذّر الحفظ بسبب تعديلات متزامنة. أعد المحاولة.');
+  }
+  // load the saved result into the page without reloading
+  function reloadData({ meta, schools, rows, newSec }) {
+    Object.assign(META, meta); SECURE = newSec; window.SCHOOL_SECURE = newSec;
+    DATA.length = 0;
+    for (const s of schools) { DATA.push(Object.assign(s, rows[s.id] || {})); }
+    byId.clear(); sortKey.clear(); groupSize.clear();
+    for (const s of DATA) {
+      byId.set(s.id, s);
+      sortKey.set(s.id, [ord(GOV_ORDER, s.gov), s.sector ? ord(SECTORS, s.sector) : 9, ord(STAGES, s.stage)]);
+      if (s.group) groupSize.set(s.group, (groupSize.get(s.group) || 0) + 1);
+    }
+    SORTED.splice(0, SORTED.length, ...DATA.slice().sort(defaultSort));
+    const keep = { area: $('area').value, stage: $('stage').value, gender: $('gender').value, type: $('type').value };
+    $('area').innerHTML = '<option value="">جميع القطاعات والمحافظات</option>';
+    $('stage').innerHTML = '<option value="">جميع المراحل</option>';
+    $('gender').innerHTML = '<option value="">بنين وبنات</option>';
+    $('type').innerHTML = '<option value="">جميع الأنواع</option>';
+    buildFilters();
+    for (const k of Object.keys(keep)) { $(k).value = keep[k]; if ($(k).value !== keep[k]) state[k] = ''; }
+    if (state.group && !groupSize.has(state.group)) state.group = 0;
+    $('data-date').textContent = META.date || '—';
+    index = null; update(true);
+  }
+  async function saving(btn, errEl, work) {
+    const label = btn.textContent; btn.disabled = true; btn.textContent = 'جارٍ الحفظ…'; errEl.textContent = '';
+    try { await work(); return true; }
+    catch (e) {
+      errEl.textContent = e.message || 'تعذّر الحفظ';
+      if (e.status === 401) { setToken(''); }
+      return false;
+    } finally { btn.disabled = false; btn.textContent = label; }
+  }
+  $('edit-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const { vals, errs } = readForm();
+    if (errs.length) { $('edit-error').textContent = errs.join('، '); return; }
+    const isNew = editId === null, oldName = isNew ? '' : (byId.get(editId) || {}).name;
+    const ok = await saving($('edit-save'), $('edit-error'), async () => {
+      let savedId = editId;
+      const res = await commitChange((schools, rows) => {
+        if (schools.some(x => sameCode(x.code, vals['الرقم الوزاري']) && x.id !== editId)) throw new Error(`الرقم الوزاري ${vals['الرقم الوزاري']} مسجّل لمدرسة أخرى.`);
+        if (isNew) {
+          savedId = schools.reduce((m, x) => Math.max(m, x.id), -1) + 1;
+          const mi = (META.cols || []).indexOf('م');
+          if (mi >= 0) vals['م'] = String(schools.reduce((m, x) => Math.max(m, parseInt((x.raw || [])[mi], 10) || 0), 0) + 1);
+          const { row, sec } = buildRow(vals, savedId);
+          schools.push(row); rows[savedId] = sec;
+        } else {
+          const i = schools.findIndex(x => x.id === editId);
+          if (i < 0) throw new Error('هذه المدرسة حُذفت من الموقع. حدّث الصفحة.');
+          const { row, sec } = buildRow(vals, editId, schools[i].raw, (rows[editId] || {}).rawSecret);
+          schools[i] = row; rows[editId] = sec;
+        }
+      }, isNew ? `إضافة مدرسة: ${vals['اسم المدرسة']} (${vals['الرقم الوزاري']})` : `تعديل مدرسة: ${oldName} (${vals['الرقم الوزاري']})`);
+      reloadData(res);
+      $('edit-dialog').close();
+      toast(isNew ? 'أُضيفت المدرسة، وتظهر للجميع خلال دقائق' : 'حُفظ التعديل، ويظهر للجميع خلال دقائق');
+      if (isNew) { state.q = vals['الرقم الوزاري']; state.mode = 'code'; syncControls(); update(); }
+    });
+    if (!ok && !getToken()) openTokenDialog();
+  });
+
+  let deleteId = null;
+  function askDelete(id) {
+    if (!admin || !adminKey) { toast('ادخل بوضع الإدارة أولًا'); return; }
+    const s = byId.get(id); if (!s) return;
+    deleteId = id;
+    $('confirm-text').innerHTML = `هل تريد حذف <b>${esc(s.name)}</b> (الرقم الوزاري <span dir="ltr">${esc(s.code)}</span>) من الدليل؟`;
+    $('confirm-error').textContent = '';
+    if ($('details-dialog').open) $('details-dialog').close();
+    $('confirm-dialog').showModal();
+  }
+  $('confirm-go').addEventListener('click', async () => {
+    if (!(await ensureToken())) return;
+    const s = byId.get(deleteId); if (!s) return;
+    const ok = await saving($('confirm-go'), $('confirm-error'), async () => {
+      const res = await commitChange((schools, rows) => {
+        const i = schools.findIndex(x => x.id === deleteId);
+        if (i < 0) throw new Error('هذه المدرسة حُذفت من قبل. حدّث الصفحة.');
+        schools.splice(i, 1); delete rows[deleteId];
+      }, `حذف مدرسة: ${s.name} (${s.code})`);
+      reloadData(res);
+      $('confirm-dialog').close();
+      toast('حُذفت المدرسة، ويمكن استرجاعها من سجل التعديلات');
+    });
+    if (!ok && !getToken()) openTokenDialog();
+  });
+  $('add-school').addEventListener('click', () => openEditor(null));
+  $('details-edit').addEventListener('click', () => openEditor(detailsId));
+  $('details-del').addEventListener('click', () => askDelete(detailsId));
+
+  // ---- GitHub key setup (stored on this device only) ----
+  let tokenResolve = null;
+  function openTokenDialog() {
+    $('gh-token').value = ''; $('token-error').textContent = '';
+    $('token-state').textContent = getToken() ? 'يوجد مفتاح محفوظ على هذا الجهاز. أدخل مفتاحًا جديدًا لاستبداله.' : 'لا يوجد مفتاح محفوظ على هذا الجهاز.';
+    $('token-clear').hidden = !getToken();
+    $('token-dialog').showModal();
+  }
+  $('token-dialog').addEventListener('close', () => { if (tokenResolve) { const r = tokenResolve; tokenResolve = null; r(!!getToken()); } });
+  $('token-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const t = $('gh-token').value.trim(); if (!t) return;
+    const old = getToken(); setToken(t);
+    const btn = $('token-save'); btn.disabled = true; btn.textContent = 'جارٍ التحقق…'; $('token-error').textContent = '';
+    try {
+      const repo = await gh('');
+      if (repo.permissions && repo.permissions.push === false) throw new Error('المفتاح يقرأ المستودع لكنه لا يملك صلاحية الكتابة.');
+      await gh(`/git/ref/heads/${REPO.branch}`);
+      $('token-dialog').close(); toast('حُفظ مفتاح GitHub على هذا الجهاز');
+    } catch (err) { setToken(old); $('token-error').textContent = err.message; }
+    finally { btn.disabled = false; btn.textContent = 'حفظ المفتاح'; }
+  });
+  $('token-clear').addEventListener('click', () => { setToken(''); $('token-dialog').close(); toast('حُذف مفتاح GitHub من هذا الجهاز'); });
+  $('open-token').addEventListener('click', () => { $('edit-dialog').close(); openTokenDialog(); });
+  document.querySelectorAll('.history-link').forEach(a => { a.href = HISTORY_URL; });
 
   /* ---------- charts page: dashboard + custom chart, PDF/PNG download ---------- */
   const CH = {
