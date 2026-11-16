@@ -24,11 +24,11 @@ button{cursor:pointer}
 
 /* header card */
 .top-card{background:var(--paper);border-radius:28px;box-shadow:var(--shadow);overflow:hidden;position:relative}
-.top-card::before{content:"";display:block;height:6px;background:linear-gradient(90deg,var(--navy-deep),var(--navy),var(--gold),var(--steel))}
+.top-card::before{content:"";display:block;height:7px;background:linear-gradient(90deg,#257eb6,#30959d 50%,#3daf71)}
+.ministry{background:#0b3946;display:flex;justify-content:center;align-items:center;padding:8px 16px 10px;border-bottom:3px solid #1f9a8a}
+.ministry img{display:block;height:128px;width:auto;max-width:100%}
 .brand{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 26px;border-bottom:1px solid #e8e5dc;background:linear-gradient(180deg,#fffefb,#f7f5ef)}
 .brand-id{display:flex;align-items:center;gap:12px}
-.emblem{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--navy-deep),var(--navy));display:grid;place-items:center;box-shadow:0 8px 18px rgba(7,29,53,.25);flex:none}
-.emblem svg{width:28px;height:28px}
 .brand-text b{display:block;font-size:17px;color:var(--navy-deep)}
 .brand-text span{font-size:13px;color:var(--muted)}
 .brand-side{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
@@ -210,6 +210,7 @@ dialog::backdrop{background:rgba(4,15,28,.62)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 #print-area{display:none}
+.print-banner{display:none}
 
 @media (max-width:980px){
   .stats{grid-template-columns:repeat(3,1fr)}
@@ -221,6 +222,8 @@ dialog::backdrop{background:rgba(4,15,28,.62)}
 @media (max-width:620px){
   .page{width:calc(100% - 16px);padding-top:8px}
   .brand{padding:12px 14px;flex-wrap:wrap}
+  .ministry{padding:6px 8px 8px}
+  .ministry img{height:auto;width:100%;max-width:420px}
   .data-date{white-space:normal}
   .hero{padding:18px 14px 18px}
   .hero .sub{font-size:14px}
@@ -251,6 +254,8 @@ dialog::backdrop{background:rgba(4,15,28,.62)}
   body::before{display:none}
   .page,dialog,.toast{display:none!important}
   #print-area{display:block;font-size:12px}
+  .print-banner{display:block;background:#0b3946;text-align:center;border-radius:10px;padding:6px;margin-bottom:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .print-banner img{height:90px;width:auto}
   .report h2{font-size:18px}
   .kpis{grid-template-columns:repeat(4,1fr)}
   .rgrid{grid-template-columns:1fr 1fr}

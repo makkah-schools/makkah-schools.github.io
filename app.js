@@ -379,7 +379,7 @@ ${why}
     renderReport(); $('report-dialog').showModal();
   });
   $('report-scope').addEventListener('change', renderReport);
-  $('print-report').addEventListener('click', () => { $('print-area').innerHTML = reportHtml($('report-scope').value); window.print(); });
+  $('print-report').addEventListener('click', () => { $('print-area').innerHTML = '<div class="print-banner"><img src="ministry-header.png" alt=""></div>' + reportHtml($('report-scope').value); window.print(); });
 
   /* ---------- Excel ---------- */
   function loadExcel() {
