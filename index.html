@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>دليل مدارس منطقة مكة المكرمة 1448هـ</title>
+<meta name="description" content="دليل للبحث في مدارس منطقة مكة المكرمة بالاسم أو الرقم الوزاري أو اسم المدير، مع التصفية بالقطاع والمرحلة والجنس، وتقارير الأعداد وتصدير Excel.">
+<meta name="theme-color" content="#071d35">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23071d35'/%3E%3Cpath d='M20 9l11 6v2H9v-2zM11 19h3v9h-3zm7.5 0h3v9h-3zm7.5 0h3v9h-3zM9 30h22v2H9z' fill='%23d6b878'/%3E%3C/svg%3E">
+<link rel="preload" href="fonts/plex-arabic-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/plex-arabic-700.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="page">
+  <header class="top-card">
+    <div class="brand">
+      <div class="brand-id">
+        <div class="emblem" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 7l13 7v2.5H7V14zM10 19h3.5v10H10zm8.25 0h3.5v10h-3.5zm8.25 0H30v10h-3.5zM7 31h26v2.5H7z" fill="#d6b878"/></svg></div>
+        <div class="brand-text"><b>منطقة مكة المكرمة</b><span>المدارس الحكومية · العام الدراسي 1448هـ</span></div>
+      </div>
+      <div class="data-date">تاريخ البيانات: <b id="data-date">—</b></div>
+    </div>
+    <div class="hero">
+      <h1>دليل مدارس منطقة مكة المكرمة</h1>
+      <p class="sub">ابحث عن أي مدرسة باسمها أو رقمها الوزاري أو اسم قائدها، حتى لو كتبت الاسم بخطأ إملائي، وصفِّ النتائج بالقطاع والمرحلة والجنس.</p>
+
+      <div class="stats" id="stats" aria-label="أعداد المدارس"></div>
+
+      <section class="search-panel" role="search">
+        <label class="search-label" for="q" id="q-label">البحث الذكي في المدارس</label>
+        <div class="search-row">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input id="q" type="search" autocomplete="off" enterkeyhint="search" spellcheck="false" placeholder="اسم المدرسة أو رقمها أو اسم المدير">
+            <button class="clear-q" id="clear-q" type="button" aria-label="مسح البحث" hidden>×</button>
+          </div>
+          <button class="go" id="go" type="button">ابحث</button>
+        </div>
+        <div class="modes" role="radiogroup" aria-label="طريقة البحث">
+          <label class="chip"><input type="radio" name="mode" value="all" checked>بحث شامل</label>
+          <label class="chip"><input type="radio" name="mode" value="name">اسم المدرسة</label>
+          <label class="chip"><input type="radio" name="mode" value="code">الرقم الوزاري</label>
+          <span class="sep" aria-hidden="true"></span>
+          <label class="chip check"><input type="checkbox" id="expanded">بحث موسّع: أخطاء أكثر وكلمات ناقصة</label>
+        </div>
+        <p class="search-help" id="search-help">يتجاهل الهمزات والتاء المربوطة والتشكيل، ويفهم الأعداد المكتوبة بالحروف مثل «الثالثة والعشرون»، ويصحح الكتابة إذا كانت لوحة المفاتيح على الإنجليزية.</p>
+        <div class="filters">
+          <div class="field"><label for="area">القطاع / المحافظة</label><select id="area"><option value="">جميع القطاعات والمحافظات</option></select></div>
+          <div class="field"><label for="stage">المرحلة</label><select id="stage"><option value="">جميع المراحل</option></select></div>
+          <div class="field"><label for="gender">الجنس</label><select id="gender"><option value="">بنين وبنات</option></select></div>
+          <div class="field"><label for="type">نوع التعليم</label><select id="type"><option value="">جميع الأنواع</option></select></div>
+          <button class="reset" id="reset" type="button">مسح التصفية</button>
+        </div>
+      </section>
+    </div>
+  </header>
+
+  <main class="results-card" id="results-card">
+    <div class="results-bar">
+      <p class="count" id="count" aria-live="polite">جارٍ تحميل البيانات…</p>
+      <div class="actions">
+        <button class="btn primary" id="open-report" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>التقارير</button>
+        <button class="btn" id="open-export" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4 17v3h16v-3"/></svg>تصدير Excel</button>
+        <button class="btn" id="share" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 10a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1"/></svg>نسخ الرابط</button>
+      </div>
+    </div>
+    <div class="banner" id="group-banner" hidden><span id="group-text"></span><button type="button" id="group-close">عرض كل المدارس</button></div>
+    <div class="result-grid" id="results"></div>
+    <div class="more" id="more-wrap" hidden><button class="btn" id="more" type="button">عرض المزيد</button></div>
+    <div class="more" id="weak-wrap" hidden><button class="btn" id="show-weak" type="button">عرض النتائج المحتملة</button></div>
+  </main>
+
+  <footer>
+    <div>المصدر: <span id="source-title">بيان مدارس ومديري ومديرات منطقة مكة المكرمة</span></div>
+    <div>القطاعات داخل مكة المكرمة مأخوذة من دليل مدارس تعليم مكة، والمحافظة مستنتجة من اسم المدرسة ومدينتها.</div>
+    <div>لا يعرض الدليل أرقام الهويات ولا أرقام الجوال ولا البريد الإلكتروني.</div>
+  </footer>
+</div>
+
+<dialog id="report-dialog" aria-labelledby="report-title">
+  <div class="dlg-head"><h3 id="report-title">تقارير أعداد المدارس</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
+  <div class="dlg-body">
+    <div class="dlg-tools">
+      <div class="field"><label for="report-scope">نطاق التقرير</label><select id="report-scope"><option value="all">جميع المدارس</option><option value="results">النتائج الحالية (البحث والتصفية)</option></select></div>
+      <button class="btn primary" id="print-report" type="button">طباعة / حفظ PDF</button>
+      <button class="btn" id="report-excel" type="button">تصدير التقرير Excel</button>
+    </div>
+    <div id="report-body"></div>
+  </div>
+</dialog>
+
+<dialog id="export-dialog" aria-labelledby="export-title">
+  <div class="dlg-head"><h3 id="export-title">تصدير إلى Excel</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
+  <div class="dlg-body">
+    <div class="export-opts">
+      <label class="opt"><input type="radio" name="export-scope" value="results" checked><div><b>النتائج الحالية</b><span id="export-results-count"></span></div></label>
+      <label class="opt"><input type="radio" name="export-scope" value="all"><div><b>جميع المدارس</b><span id="export-all-count"></span></div></label>
+    </div>
+    <p class="note">يحتوي الملف على ورقة المدارس بكل بياناتها، وورقة للإحصاءات. لا يتضمن أرقام الهويات ولا الجوالات ولا البريد.</p>
+    <p class="err" id="export-error" role="alert"></p>
+    <div class="dlg-tools"><button class="btn primary" id="download-excel" type="button">تنزيل ملف Excel</button><button class="btn" type="button" data-close>إلغاء</button></div>
+  </div>
+</dialog>
+
+<div id="print-area"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="data.js"></script>
+<script src="search.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
