@@ -6,6 +6,7 @@
 <title>دليل مدارس منطقة مكة المكرمة 1448هـ</title>
 <meta name="description" content="دليل للبحث في مدارس منطقة مكة المكرمة بالاسم أو الرقم الوزاري أو اسم المدير، مع التصفية بالقطاع والمرحلة والجنس، وتقارير الأعداد وتصدير Excel.">
 <meta name="theme-color" content="#071d35">
+<meta name="robots" content="noindex, nofollow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23071d35'/%3E%3Cpath d='M20 9l11 6v2H9v-2zM11 19h3v9h-3zm7.5 0h3v9h-3zm7.5 0h3v9h-3zM9 30h22v2H9z' fill='%23d6b878'/%3E%3C/svg%3E">
 <link rel="preload" href="fonts/plex-arabic-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/plex-arabic-700.woff2" as="font" type="font/woff2" crossorigin>
@@ -19,7 +20,10 @@
         <div class="emblem" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 7l13 7v2.5H7V14zM10 19h3.5v10H10zm8.25 0h3.5v10h-3.5zm8.25 0H30v10h-3.5zM7 31h26v2.5H7z" fill="#d6b878"/></svg></div>
         <div class="brand-text"><b>منطقة مكة المكرمة</b><span>المدارس الحكومية · العام الدراسي 1448هـ</span></div>
       </div>
-      <div class="data-date">تاريخ البيانات: <b id="data-date">—</b></div>
+      <div class="brand-side">
+        <div class="data-date">تاريخ البيانات: <b id="data-date">—</b></div>
+        <button class="admin-btn" id="admin-btn" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 018 0v3"/></svg><span id="admin-label">دخول الإدارة</span></button>
+      </div>
     </div>
     <div class="hero">
       <h1>دليل مدارس منطقة مكة المكرمة</h1>
@@ -74,7 +78,7 @@
   <footer>
     <div>المصدر: <span id="source-title">بيان مدارس ومديري ومديرات منطقة مكة المكرمة</span></div>
     <div>القطاعات داخل مكة المكرمة مأخوذة من دليل مدارس تعليم مكة، والمحافظة مستنتجة من اسم المدرسة ومدينتها.</div>
-    <div>لا يعرض الدليل أرقام الهويات ولا أرقام الجوال ولا البريد الإلكتروني.</div>
+    <div id="privacy-note">هويات المديرين وجوالاتهم وبريدهم مشفّرة، ولا تظهر إلا بعد دخول الإدارة بكلمة المرور.</div>
   </footer>
 </div>
 
@@ -97,16 +101,29 @@
       <label class="opt"><input type="radio" name="export-scope" value="results" checked><div><b>النتائج الحالية</b><span id="export-results-count"></span></div></label>
       <label class="opt"><input type="radio" name="export-scope" value="all"><div><b>جميع المدارس</b><span id="export-all-count"></span></div></label>
     </div>
-    <p class="note">يحتوي الملف على ورقة المدارس بكل بياناتها، وورقة للإحصاءات. لا يتضمن أرقام الهويات ولا الجوالات ولا البريد.</p>
+    <p class="note" id="export-note">يحتوي الملف على ورقة المدارس بكل بياناتها، وورقة للإحصاءات. لا يتضمن أرقام الهويات ولا الجوالات ولا البريد.</p>
     <p class="err" id="export-error" role="alert"></p>
     <div class="dlg-tools"><button class="btn primary" id="download-excel" type="button">تنزيل ملف Excel</button><button class="btn" type="button" data-close>إلغاء</button></div>
   </div>
+</dialog>
+
+<dialog id="login-dialog" aria-labelledby="login-title">
+  <div class="dlg-head"><h3 id="login-title">دخول الإدارة</h3><button class="x" type="button" data-close aria-label="إغلاق">×</button></div>
+  <form class="dlg-body login" id="login-form" autocomplete="on">
+    <p class="note">بعد الدخول تظهر لكل مدرسة هوية المدير وجواله وبريده، ويمكن البحث بها وتصديرها إلى Excel.</p>
+    <input type="text" name="username" value="admin" autocomplete="username" hidden>
+    <div class="field"><label for="pw">كلمة المرور</label><input id="pw" name="password" type="password" autocomplete="current-password" dir="ltr" spellcheck="false" required></div>
+    <label class="remember"><input type="checkbox" id="remember" checked>تذكّرني على هذا الجهاز</label>
+    <p class="err" id="login-error" role="alert"></p>
+    <div class="dlg-tools"><button class="btn primary" type="submit" id="login-go">دخول</button><button class="btn" type="button" data-close>إلغاء</button></div>
+  </form>
 </dialog>
 
 <div id="print-area"></div>
 <div class="toast" id="toast" role="status"></div>
 
 <script src="data.js"></script>
+<script src="secure.js"></script>
 <script src="search.js"></script>
 <script src="app.js"></script>
 </body>

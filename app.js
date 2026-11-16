@@ -2,6 +2,8 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const DATA = window.SCHOOLS || [];
+  const SECURE = window.SCHOOL_SECURE && window.SCHOOL_SECURE.build === (window.SCHOOL_META || {}).build ? window.SCHOOL_SECURE : null;
+  let admin = false;
   const META = window.SCHOOL_META || {};
   const byId = new Map(DATA.map(s => [s.id, s]));
   const PAGE = 24;
@@ -40,7 +42,8 @@
   function getIndex() {
     if (!index) index = SchoolSearch.index(DATA.map(s => ({
       id: s.id, name: s.name, code: s.code, manager: s.manager, stage: s.stage, gender: s.gender,
-      sector: s.sector, region: s.gov, town: s.town, type: s.type, office: s.office
+      sector: s.sector, region: s.gov, town: s.town, type: s.type, office: s.office,
+      ...(admin ? { identity: s.identity, phone: s.phone, email: s.email } : {})
     })));
     return index;
   }
@@ -123,6 +126,31 @@
 
   const COPY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>';
   const dd = v => v ? esc(v) : '<span class="none">غير مسجّل</span>';
+  const NONE = '<span class="none">غير مسجّل</span>';
+  const digits = v => String(v || '').replace(/\D/g, '');
+  function localPhone(v) {
+    let d = digits(v); if (!d) return '';
+    if (d.startsWith('00966')) d = d.slice(5); else if (d.startsWith('966')) d = d.slice(3);
+    return d.startsWith('0') ? d : '0' + d;
+  }
+  const intlPhone = v => { const l = localPhone(v); return l ? '966' + l.slice(1) : ''; };
+  const ICON_WA = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.3-.4.2-.4.7-1.4.1-.2 0-.3 0-.5l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.7 11.8 11.8 0 004.5 4c1.7.7 2.3.8 3.2.7a2.7 2.7 0 001.8-1.3 2.2 2.2 0 00.1-1.3c0-.1-.2-.2-.5-.3z"/></svg>';
+  const ICON_PHONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.4 1.8.7 2.7a2 2 0 01-.5 2.1L8 9.8a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.4c.9.3 1.8.6 2.7.7a2 2 0 011.7 2z"/></svg>';
+  const ICON_MAIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>';
+  function contactBlock(s) {
+    if (!admin) return '';
+    const f = s.gender === 'بنات', ph = localPhone(s.phone), wa = intlPhone(s.phone);
+    const item = (label, html, wide) => `<div class="detail${wide ? ' wide' : ''}"><dt>${label}</dt><dd>${html}</dd></div>`;
+    let rows = item(f ? 'هوية المديرة' : 'هوية المدير', s.identity ? `<span class="ltr">${esc(s.identity)}</span>` : NONE)
+      + item(f ? 'جوال المديرة' : 'جوال المدير', ph ? `<a href="tel:${ph}">${ph}</a>` : NONE)
+      + item('البريد الإلكتروني', s.email ? `<a href="mailto:${esc(s.email)}">${esc(s.email)}</a>` : NONE, true);
+    if (s.assigned) rows += item('المكلفة', esc(s.assigned));
+    if (s.assignedPhone) rows += item('الهاتف', `<a href="tel:${localPhone(s.assignedPhone)}">${localPhone(s.assignedPhone)}</a>`);
+    const links = (wa ? `<a class="wa" href="https://wa.me/${wa}" target="_blank" rel="noopener">${ICON_WA}واتساب</a><a href="tel:${ph}">${ICON_PHONE}اتصال</a>` : '')
+      + (s.email ? `<a href="mailto:${esc(s.email)}">${ICON_MAIL}بريد</a>` : '');
+    return `<div class="contact"><div class="contact-title">${ICON_LOCK}بيانات الإدارة</div><dl class="details">${rows}</dl>${links ? `<div class="links">${links}</div>` : ''}</div>`;
+  }
+  const ICON_LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 018 0"/></svg>';
   function card(s) {
     const h = hits.get(s.id);
     const why = h && h.category !== 'exact' && h.reason ? `<div class="why ${h.category === 'possible' ? 'possible' : ''}">${esc(h.reason)}</div>` : '';
@@ -144,7 +172,7 @@ ${why}
 <div class="detail"><dt>مكتب التعليم</dt><dd>${dd(s.office)}</dd></div>
 <div class="detail"><dt>السلطة</dt><dd>${dd(s.authority)}</dd></div>
 <div class="detail wide"><dt>${managerTitle(s)}</dt><dd>${dd(s.manager)}</dd></div>
-</dl>${g}</article>`;
+</dl>${contactBlock(s)}${g}</article>`;
   }
 
   function render() {
@@ -232,7 +260,9 @@ ${why}
   };
   function updateModeText() {
     const t = MODE_TEXT[state.mode];
-    $('q-label').textContent = t[0]; $('q').placeholder = t[1]; $('search-help').textContent = t[2];
+    $('q-label').textContent = t[0];
+    $('q').placeholder = admin && state.mode === 'all' ? 'اسم المدرسة أو رقمها أو اسم المدير أو هويته أو جواله' : t[1];
+    $('search-help').textContent = admin && state.mode === 'all' ? t[2] + ' ويبحث أيضًا برقم هوية المدير وجواله وبريده.' : t[2];
     $('q').setAttribute('inputmode', state.mode === 'code' ? 'numeric' : 'search');
   }
 
@@ -377,6 +407,10 @@ ${why}
       ws.addRow([]);
     }
   }
+  const ADMIN_COLS = [
+    ['هوية المدير / المديرة', 14, s => s.identity], ['جوال المدير / المديرة', 14, s => localPhone(s.phone)],
+    ['البريد الإلكتروني', 32, s => s.email], ['المكلفة', 22, s => s.assigned], ['الهاتف', 14, s => localPhone(s.assignedPhone)]
+  ];
   const COLS = [
     ['م', 6, (s, i) => i + 1], ['الرقم الوزاري', 14, s => s.code], ['اسم المدرسة', 46, s => s.name], ['المرحلة', 18, s => s.stage],
     ['الجنس', 9, s => s.gender], ['نوع التعليم', 20, s => s.type], ['مكتب التعليم', 18, s => s.office],
@@ -408,10 +442,15 @@ ${why}
       await loadExcel();
       const wb = newBook();
       const ws = wb.addWorksheet('المدارس', { views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }] });
-      ws.columns = COLS.map(([h, w]) => ({ header: h, width: w }));
+      const cols = admin ? COLS.concat(ADMIN_COLS) : COLS;
+      ws.columns = cols.map(([h, w]) => ({ header: h, width: w }));
       styleHead(ws.getRow(1));
-      rows.forEach((s, i) => { const r = ws.addRow(COLS.map(c => c[2](s, i) ?? '')); r.getCell(2).numFmt = '@'; r.getCell(1).alignment = { horizontal: 'center' }; });
-      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLS.length } };
+      rows.forEach((s, i) => {
+        const r = ws.addRow(cols.map(c => c[2](s, i) ?? ''));
+        r.getCell(2).numFmt = '@'; r.getCell(1).alignment = { horizontal: 'center' };
+        if (admin) for (let c = COLS.length + 1; c <= cols.length; c++) r.getCell(c).numFmt = '@';
+      });
+      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
       addStatsSheet(wb, rows, scope);
       await saveWorkbook(wb, scope === 'all' ? 'دليل-مدارس-مكة-المكرمة-1448.xlsx' : 'مدارس-مكة-المكرمة-نتائج-البحث.xlsx');
       $('export-dialog').close(); toast(`نُزّل ملف Excel: ${schoolsN(rows.length)}`);
@@ -429,6 +468,72 @@ ${why}
     finally { btn.disabled = false; }
   });
 
+  /* ---------- admin login (personal data is AES-GCM encrypted in secure.js) ---------- */
+  const KEY_NAME = 'makkah-schools-admin-key';
+  const b64d = v => Uint8Array.from(atob(v), c => c.charCodeAt(0));
+  const b64e = buf => { let x = ''; for (const b of new Uint8Array(buf)) x += String.fromCharCode(b); return btoa(x); };
+  const canCrypto = () => !!(SECURE && window.crypto && crypto.subtle);
+  async function deriveKey(pw) {
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64d(SECURE.salt), iterations: SECURE.iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
+  }
+  async function decryptWith(key) {
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(SECURE.iv) }, key, b64d(SECURE.ct));
+    const obj = JSON.parse(new TextDecoder().decode(pt));
+    if (obj.build !== SECURE.build) throw new Error('build');
+    return obj.rows;
+  }
+  function applySecret(rows) {
+    for (const [id, v] of Object.entries(rows)) { const s = byId.get(+id); if (s) Object.assign(s, v); }
+    admin = true; index = null; adminUI(); updateModeText(); update(true);
+  }
+  function clearKey() { try { localStorage.removeItem(KEY_NAME); sessionStorage.removeItem(KEY_NAME); } catch (e) { /* ignore */ } }
+  async function storeKey(key, remember) {
+    try {
+      clearKey();
+      const val = JSON.stringify({ build: SECURE.build, k: b64e(await crypto.subtle.exportKey('raw', key)) });
+      (remember ? localStorage : sessionStorage).setItem(KEY_NAME, val);
+    } catch (e) { /* storage unavailable: stays unlocked for this visit only */ }
+  }
+  async function autoUnlock() {
+    let val = null;
+    try { val = localStorage.getItem(KEY_NAME) || sessionStorage.getItem(KEY_NAME); } catch (e) { return; }
+    if (!val) return;
+    try {
+      const o = JSON.parse(val);
+      if (o.build !== SECURE.build) throw new Error('old');
+      const key = await crypto.subtle.importKey('raw', b64d(o.k), { name: 'AES-GCM' }, false, ['decrypt']);
+      applySecret(await decryptWith(key));
+    } catch (e) { clearKey(); }
+  }
+  function adminUI() {
+    const b = $('admin-btn');
+    b.hidden = !canCrypto();
+    b.classList.toggle('on', admin);
+    $('admin-label').textContent = admin ? 'الإدارة · خروج' : 'دخول الإدارة';
+    b.setAttribute('aria-label', admin ? 'الخروج من وضع الإدارة' : 'دخول الإدارة لعرض بيانات المديرين');
+    $('export-note').textContent = admin
+      ? 'يحتوي الملف على ورقة المدارس بكل بياناتها، ومنها هوية المدير وجواله وبريده، وورقة للإحصاءات. احفظه في مكان آمن.'
+      : 'يحتوي الملف على ورقة المدارس بكل بياناتها، وورقة للإحصاءات. لا يتضمن أرقام الهويات ولا الجوالات ولا البريد إلا بعد دخول الإدارة.';
+  }
+  $('admin-btn').addEventListener('click', () => {
+    if (admin) { clearKey(); location.reload(); return; }
+    $('login-error').textContent = ''; $('pw').value = ''; $('login-dialog').showModal(); $('pw').focus();
+  });
+  $('login-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const pw = $('pw').value; if (!pw) return;
+    const go = $('login-go'); go.disabled = true; go.textContent = 'جارٍ التحقق…'; $('login-error').textContent = '';
+    try {
+      const key = await deriveKey(pw);
+      const rows = await decryptWith(key);
+      await storeKey(key, $('remember').checked);
+      $('login-dialog').close(); applySecret(rows);
+      toast('تم الدخول: تظهر الآن بيانات المديرين في كل بطاقة');
+    } catch (err) { $('login-error').textContent = 'كلمة المرور غير صحيحة.'; $('pw').select(); }
+    finally { go.disabled = false; go.textContent = 'دخول'; }
+  });
+
   /* ---------- dialogs ---------- */
   document.querySelectorAll('dialog').forEach(d => {
     d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) d.close(); });
@@ -439,6 +544,8 @@ ${why}
   if (META.title) $('source-title').textContent = META.title;
   buildFilters();
   loadUrl();
+  adminUI();
   syncControls();
   update(true);
+  if (canCrypto()) autoUnlock();
 })();

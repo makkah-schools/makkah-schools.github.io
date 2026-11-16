@@ -1,7 +1,9 @@
-"""Builds site/data.js from the Makkah schools spreadsheet.
-Usage: python3 tools/prepare.py <schools.xlsx> [tools/sectors-makkah.json] [data.js]
-Personal fields (national ID, mobile, e-mail, assigned person, phone) are never written out."""
-import sys, re, json, collections, hashlib, openpyxl
+"""Builds data.js (and the encrypted secure.js) from the Makkah schools spreadsheet.
+Usage: SCHOOL_ADMIN_PASSWORD='...' python3 tools/prepare.py <schools.xlsx> [tools/sectors-makkah.json] [data.js]
+data.js holds school data only. Principals' national ID, mobile and e-mail (and the assigned person/phone)
+go only into secure.js, encrypted with AES-256-GCM; the key is derived from the admin password
+(PBKDF2-SHA256, 600,000 iterations). Without SCHOOL_ADMIN_PASSWORD, secure.js is not written."""
+import sys, re, json, collections, base64, secrets, openpyxl
 
 import os
 here = os.path.dirname(os.path.abspath(__file__))
@@ -76,7 +78,7 @@ def kw(t):
         if re.search(p, t): return gv
     return ''
 
-schools, gov, sector, via = [], {}, {}, collections.Counter()
+schools, gov, sector, via, secrets_by_id = [], {}, {}, collections.Counter(), {}
 for i, r in enumerate(recs):
     code = str(r[col['الرقم الوزاري']]).strip()
     name = re.sub(r'\s+', ' ', str(r[col['اسم المدرسة']] or '')).strip()
@@ -88,6 +90,11 @@ for i, r in enumerate(recs):
          'region': clean(r[col['المنطقة الإدارية']]),
          'manager': re.sub(r'\s+', ' ', str(r[col['اسم مدير المدرسة']] or '')).strip(),
          '_mid': str(r[col['هوية مدير المدرسة']] or '').strip()}
+    def opt(h):
+        return str(r[col[h]] or '').strip() if h in col else ''
+    secret = {'identity': s['_mid'], 'phone': opt('جوال مدير المدرسة'), 'email': opt('البريد الإلكتروني لمدير المدرسة'),
+              'assigned': opt('المكلفة'), 'assignedPhone': opt('الهاتف')}
+    secrets_by_id[i] = {k: v for k, v in secret.items() if v}
     sec = by_rev.get(code, '')
     if sec: via['guide-number'] += 1
     else:
@@ -137,11 +144,30 @@ for s in schools:
 m = re.search(r'(\d{4})-(\d{1,2})-(\d{1,2})', xlsx)
 HM = ['محرم', 'صفر', 'ربيع الأول', 'ربيع الآخر', 'جمادى الأولى', 'جمادى الآخرة', 'رجب', 'شعبان', 'رمضان', 'شوال', 'ذو القعدة', 'ذو الحجة']
 date = f'{int(m.group(3))} {HM[int(m.group(2)) - 1]} {m.group(1)}هـ' if m else ''
-meta = {'title': title, 'date': date, 'count': len(out_rows)}
+build = secrets.token_hex(6)
+meta = {'title': title, 'date': date, 'count': len(out_rows), 'build': build}
 with open(out, 'w', encoding='utf-8') as f:
     f.write('window.SCHOOL_META=' + json.dumps(meta, ensure_ascii=False) + ';\n')
     f.write('window.SCHOOLS=' + json.dumps(out_rows, ensure_ascii=False, separators=(',', ':')) + ';\n')
 
+import os as _os
+pw = _os.environ.get('SCHOOL_ADMIN_PASSWORD', '')
+secure_path = _os.path.join(_os.path.dirname(_os.path.abspath(out)), 'secure.js')
+if pw:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    from cryptography.hazmat.primitives import hashes
+    ITER = 600000
+    salt, iv = secrets.token_bytes(16), secrets.token_bytes(12)
+    key = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=ITER).derive(pw.encode('utf-8'))
+    plain = json.dumps({'build': build, 'rows': secrets_by_id}, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+    ct = AESGCM(key).encrypt(iv, plain, None)
+    b64 = lambda b: base64.b64encode(b).decode()
+    with open(secure_path, 'w', encoding='utf-8') as f:
+        f.write('window.SCHOOL_SECURE=' + json.dumps({'v': 1, 'build': build, 'iter': ITER, 'salt': b64(salt), 'iv': b64(iv), 'ct': b64(ct)}) + ';\n')
+    print('secure.js written (encrypted)', len(ct), 'bytes')
+else:
+    print('SCHOOL_ADMIN_PASSWORD not set: secure.js not written')
 print('schools', len(out_rows), 'groups', gno, dict(via))
 print('gov', collections.Counter(r['gov'] for r in out_rows).most_common())
 print('sector', collections.Counter(r['sector'] for r in out_rows).most_common())
